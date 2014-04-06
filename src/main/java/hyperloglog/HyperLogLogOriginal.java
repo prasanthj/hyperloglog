@@ -2,7 +2,6 @@ package hyperloglog;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 public class HyperLogLogOriginal {
@@ -19,19 +18,23 @@ public class HyperLogLogOriginal {
   private int lr;
   private long numElems;
   private long shortRangeThreshold;
+  private long cachedCount;
+  private boolean countInvalidate;
 
   public HyperLogLogOriginal() {
-    this(16, 128);
+    this(16, 64);
   }
 
   public HyperLogLogOriginal(int p, int numBitsHash) {
     this.p = p;
-    this.m = (int) Math.pow(2, p);
+    this.m = 1 << p;
     this.shortRangeThreshold = (long) (2.5f * m);
     this.register = new byte[m];
     initializeAlpha(numBitsHash);
     this.hf = Hashing.goodFastHash(numBitsHash);
     this.numElems = 0;
+    this.cachedCount = -1;
+    this.countInvalidate = false;
   }
 
   // see paper for alpha initialization
@@ -54,24 +57,43 @@ public class HyperLogLogOriginal {
 
   private void add() {
     numElems++;
-    // TODO: For short range correction use linear counting
-    if (numElems < shortRangeThreshold) {
-      // use linear counting here
-    }
     long hashcode = hc.asLong();
-    registerIdx = (int) (hashcode & (m-1));
+    registerIdx = (int) (hashcode & (m - 1));
     w = hashcode >>> p;
     lr = findLongestRun(w);
-    register[registerIdx] = (byte) Math.max(register[registerIdx], lr);
+    int currentVal = register[registerIdx];
+    if (lr > currentVal) {
+      register[registerIdx] = (byte) lr;
+      countInvalidate = true;
+    }
   }
 
   public long count() {
-    double sum = 0;
-    for (int i = 0; i < register.length; i++) {
-      sum += Math.pow(2, -register[i]);
+    if(countInvalidate || cachedCount < -1) {
+      double sum = 0;
+      long numZeros = 0;
+      for (int i = 0; i < register.length; i++) {
+        if (register[i] == 0) {
+          numZeros++;
+          sum += 1;
+        } else {
+          sum += Math.pow(2, -register[i]);
+        }
+      }
+      cachedCount = (long) (alpha * (Math.pow(m, 2)) * (1d / (double) sum));
+
+      // For short range correction use linear counting
+      if (numElems <= shortRangeThreshold) {
+        if (numZeros != 0) {
+          cachedCount = linearCount(numZeros);
+        }
+      }
     }
-    long count = (long) (alpha * (Math.pow(m, 2)) * (1d / (double) sum));
-    return count;
+    return cachedCount;
+  }
+
+  private long linearCount(long numZeros) {
+    return (long) (Math.round(m * Math.log(m / ((double) numZeros))));
   }
 
   private int findLongestRun(long v) {
