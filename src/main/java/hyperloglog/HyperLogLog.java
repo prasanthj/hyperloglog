@@ -262,12 +262,4 @@ public class HyperLogLog {
       }
     }
   }
-
-  public String serializeRegisterAsBase64String() {
-    return BaseEncoding.base64().encode(register);
-  }
-
-  public byte[] deserializeRegisterFromBase64String(String encodedStr) {
-    return BaseEncoding.base64().decode(encodedStr);
-  }
 }

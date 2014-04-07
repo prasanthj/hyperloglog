@@ -1,37 +1,48 @@
 package hyperloglog;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.util.List;
 import java.util.Random;
+
+import com.google.common.collect.Lists;
 
 public class Main {
 
-  final static int COUNT = 100;
+  final static int COUNT = 1000000;
   final static int SEED = 100;
 
-  public static void main(String[] args) {
+  static List<Long> getRandomData(int count) {
+    List<Long> result = Lists.newArrayList();
     Random rand = new Random(SEED);
-    long[] iterations = new long[6];
-    for (int i = 0; i < iterations.length; i++) {
-      iterations[i] = (long) (100 * Math.pow(10, i));
+    for (int i = 0; i < count; i++) {
+      result.add(rand.nextLong());
     }
+    return result;
+  }
 
-    LinkedHashMap<Long, HLLResult> hllResults = new LinkedHashMap<Long, HLLResult>();
-    for (int iter = 0; iter < iterations.length; iter++) {
-      long start = System.currentTimeMillis();
-      HyperLogLog hllo = new HyperLogLog();
-      for (int i = 0; i < iterations[iter]; i++) {
-        hllo.addLong(rand.nextLong());
-      }
-      long estCount = hllo.count();
-      long end = System.currentTimeMillis();
-      long time = end - start;
-      HLLResult result = new HLLResult("HLL-Original", iterations[iter], estCount, time);
-      hllResults.put(iterations[iter], result);
+  public static void main(String[] args) {
+    long start = System.currentTimeMillis();
+    HyperLogLog hll = new HyperLogLog();
+    List<Long> data = getRandomData(COUNT);
+    for (Long val : data) {
+      hll.addLong(val);
     }
-
-    for (Map.Entry<Long, HLLResult> entry : hllResults.entrySet()) {
-      System.out.println(entry.getValue());
+    long estCount = hll.count();
+    long end = System.currentTimeMillis();
+    long time = end - start;
+    HLLResult result = new HLLResult("HyperLogLog", data.size(), estCount, time);
+    System.out.println(result);
+    System.out.println("Actual size: " + hll.getRegister().length + " bytes");
+    
+    String serialized = HyperLogLogUtils.serializeAsBase64String(hll.getRegister());
+    System.out.println("Base64 size: " + serialized.length() + " bytes");
+    
+    byte[] bitPacked = null;
+    try {
+      bitPacked = HyperLogLogUtils.bitpackRegister(hll.getRegister());
+    } catch (IOException e) {
+      e.printStackTrace();
     }
+    System.out.println("Bitpacked size: " + bitPacked.length + " bytes");
   }
 }
