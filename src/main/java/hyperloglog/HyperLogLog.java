@@ -260,5 +260,6 @@ public class HyperLogLog {
         register[i] = inRegister[i];
       }
     }
+    countInvalidate = true;
   }
 }

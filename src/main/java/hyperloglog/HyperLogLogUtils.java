@@ -6,7 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import com.google.common.io.BaseEncoding;
+import org.apache.commons.codec.binary.Base64;
 
 public class HyperLogLogUtils {
 
@@ -139,11 +139,11 @@ public class HyperLogLogUtils {
     return count;
   }
 
-  public static String serializeAsBase64String(byte[] register) {
-    return BaseEncoding.base64().encode(register);
+    public static String serializeAsBase64String(byte[] register) {
+    return Base64.encodeBase64String(register);
   }
 
   public static byte[] deserializeFromBase64String(String encodedStr) {
-    return BaseEncoding.base64().decode(encodedStr);
+    return Base64.decodeBase64(encodedStr);
   }
 }
