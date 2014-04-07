@@ -19,7 +19,7 @@ public class Main {
     LinkedHashMap<Long, HLLResult> hllResults = new LinkedHashMap<Long, HLLResult>();
     for (int iter = 0; iter < iterations.length; iter++) {
       long start = System.currentTimeMillis();
-      HyperLogLogOriginal hllo = new HyperLogLogOriginal();
+      HyperLogLog hllo = new HyperLogLog();
       for (int i = 0; i < iterations[iter]; i++) {
         hllo.addLong(rand.nextLong());
       }
@@ -29,8 +29,8 @@ public class Main {
       HLLResult result = new HLLResult("HLL-Original", iterations[iter], estCount, time);
       hllResults.put(iterations[iter], result);
     }
-    
-    for(Map.Entry<Long, HLLResult> entry : hllResults.entrySet()) {
+
+    for (Map.Entry<Long, HLLResult> entry : hllResults.entrySet()) {
       System.out.println(entry.getValue());
     }
   }
