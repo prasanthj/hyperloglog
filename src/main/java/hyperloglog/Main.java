@@ -1,6 +1,7 @@
 package hyperloglog;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -33,16 +34,23 @@ public class Main {
     HLLResult result = new HLLResult("HyperLogLog", data.size(), estCount, time);
     System.out.println(result);
     System.out.println("Actual size: " + hll.getRegister().length + " bytes");
-    
+
     String serialized = HyperLogLogUtils.serializeAsBase64String(hll.getRegister());
     System.out.println("Base64 size: " + serialized.length() + " bytes");
-    
+
     byte[] bitPacked = null;
+    byte[] unpacked = null;
     try {
-      bitPacked = HyperLogLogUtils.bitpackRegister(hll.getRegister());
+      bitPacked = HyperLogLogUtils.bitpackHLLRegister(hll.getRegister());
+      System.out.println("Bitpacked size: " + bitPacked.length + " bytes");
+
+      unpacked = HyperLogLogUtils.unpackHLLRegister(bitPacked);
+      System.out.println("Unpacked size: " + unpacked.length + " bytes");
+
+      System.out.println("Is unpacked array same as HLL register? : "
+          + Arrays.equals(hll.getRegister(), unpacked));
     } catch (IOException e) {
       e.printStackTrace();
     }
-    System.out.println("Bitpacked size: " + bitPacked.length + " bytes");
   }
 }

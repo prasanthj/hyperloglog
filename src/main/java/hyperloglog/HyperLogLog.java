@@ -5,7 +5,6 @@ import java.nio.charset.Charset;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import com.google.common.io.BaseEncoding;
 
 public class HyperLogLog {
 
@@ -59,7 +58,7 @@ public class HyperLogLog {
    * number bits for hash function. The hash function is chosen by Guava library based on the
    * specified bits.
    * @param p
-   *          - number of register bits
+   *          - number of register bits in the range 4 to 16 (inclusive)
    * @param numBitsHash
    *          - bits for hash function
    */

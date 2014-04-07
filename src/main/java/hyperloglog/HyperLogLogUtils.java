@@ -1,32 +1,36 @@
 package hyperloglog;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 import com.google.common.io.BaseEncoding;
 
 public class HyperLogLogUtils {
 
   /**
-   * Format of output byte array is
+   * Bitpacks the HyperLogLog register with minimum fixed bit width possible. The bitpacked output
+   * byte array is stored in this format
    * 
    * <pre>
-   * ----------------------------------
-   * |length|bit width|.....blob......|
-   * ----------------------------------
+   * |---- 4 bytes ---|--- (length * bit-width)/8 bytes ---|
+   * -------------------------------------------------------
+   * |length|bit-width|................blob................|
+   * -------------------------------------------------------
    * </pre>
    * <ul>
-   * <li><i>Length</i> - Number of elements stored as varint</li>
-   * <li><i>3 bits</i> - fixed bit width</li>
+   * <li><i>Length</i> - Max elements in HLL register can be 2^16. Hence 3 bytes are required to
+   * store length.</li>
+   * <li><i>Fixed bit width</i> - Stored in a byte</li>
    * <li><i>Blob</i> - fixed bit width * length</li>
    * @param register
-   * @return
-   * @throws IOException 
+   *          - HLL register
+   * @return bit packed register in the above format
+   * @throws IOException
    */
-  public static byte[] bitpackRegister(byte[] register) throws IOException {
+  public static byte[] bitpackHLLRegister(byte[] register) throws IOException {
     if (register == null) {
       return null;
     }
@@ -44,14 +48,16 @@ public class HyperLogLogUtils {
     byte current = 0;
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream w = new DataOutputStream(baos);
-    
-    // write the length as varint
-    writeVarInt(w, length);
-    
+
+    // write the length in MSB 3 bytes of int
+    int header = length << 8;
+
     // write bit-width to 3 MSB bits
-    current = (byte) (bitWidth << 5);
-    bitsLeft = 5;
-    
+    header |= bitWidth & 0xff;
+
+    // write header
+    w.writeInt(header);
+
     // write the blob
     for (byte value : register) {
       int bitsToWrite = bitWidth;
@@ -74,33 +80,54 @@ public class HyperLogLogUtils {
         bitsLeft = 8;
       }
     }
-    
+
     w.flush();
     return baos.toByteArray();
   }
 
-  static void writeVarInt(OutputStream output, int value) throws IOException {
-    while (true) {
-      if ((value & ~0x7f) == 0) {
-        output.write((byte) value);
-        return;
-      } else {
-        output.write((byte) (0x80 | (value & 0x7f)));
-        value >>>= 7;
-      }
+  /**
+   * Unpack the bitpacked HyperLogLog register.
+   * @param packedRegister
+   *          - bit packed register
+   * @return unpacked HLL register
+   * @throws IOException
+   */
+  public static byte[] unpackHLLRegister(byte[] packedRegister) throws IOException {
+    if (packedRegister == null) {
+      return null;
     }
-  }
 
-  private static long readVarInt(InputStream in) throws IOException {
-    int result = 0;
-    int b;
-    int offset = 0;
-    do {
-      b = in.read();
-      result |= (0x7f & b) << offset;
-      offset += 7;
-    } while (b >= 0x80);
-    return result;
+    ByteArrayInputStream bais = new ByteArrayInputStream(packedRegister);
+    DataInputStream dis = new DataInputStream(bais);
+
+    // read the header and decode length and bit width
+    int header = dis.readInt();
+    int length = header >>> 8;
+    int bitSize = header & 0xff;
+
+    int mask = (1 << bitSize) - 1;
+    int bitsLeft = 8;
+    byte current = (byte) (0xff & dis.readByte());
+
+    byte[] output = new byte[length];
+    for (int i = 0; i < output.length; i++) {
+      byte result = 0;
+      int bitsLeftToRead = bitSize;
+      while (bitsLeftToRead > bitsLeft) {
+        result <<= bitsLeft;
+        result |= current & ((1 << bitsLeft) - 1);
+        bitsLeftToRead -= bitsLeft;
+        current = (byte) (0xff & dis.readByte());
+        bitsLeft = 8;
+      }
+      if (bitsLeftToRead > 0) {
+        result <<= bitsLeftToRead;
+        bitsLeft -= bitsLeftToRead;
+        result |= (current >>> bitsLeft) & ((1 << bitsLeftToRead) - 1);
+      }
+      output[i] = (byte) (result & mask);
+    }
+    return output;
   }
 
   private static int getBitWidth(byte value) {
