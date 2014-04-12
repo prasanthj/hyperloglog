@@ -15,7 +15,7 @@ public class HyperLogLog {
   public static enum EncodingType {
     SPARSE, DENSE
   }
-  
+
   // number of bits to address registers
   private int p;
 
@@ -49,6 +49,7 @@ public class HyperLogLog {
   private boolean invalidateCount;
 
   private EncodingType encoding;
+
   /**
    * By default, HyperLogLog uses 14 LSB bits of hashcode as register index and a 64 bit
    * hashfunction (Good hash function for 64bit as suggested by Google Guava library is
@@ -245,7 +246,7 @@ public class HyperLogLog {
     this.cachedCount = count;
     this.invalidateCount = true;
   }
-  
+
   private long linearCount(long numZeros) {
     return (long) (Math.round(m * Math.log(m / ((double) numZeros))));
   }
@@ -308,7 +309,7 @@ public class HyperLogLog {
   public int getNumRegisterIndexBits() {
     return p;
   }
-  
+
   public int getNumHashBits() {
     return chosenHashBits;
   }
@@ -319,5 +320,30 @@ public class HyperLogLog {
 
   public void setEncoding(EncodingType encoding) {
     this.encoding = encoding;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof HyperLogLog)) {
+      return false;
+    }
+
+    HyperLogLog other = (HyperLogLog) obj;
+    long count = count();
+    long otherCount = other.count();
+    return p == other.p && chosenHashBits == other.chosenHashBits
+        && encoding.equals(other.encoding) && count == otherCount
+        && Arrays.equals(register, other.register);
+  }
+
+  @Override
+  public int hashCode() {
+    int hashcode = 0;
+    hashcode += 31 * p;
+    hashcode += 31 * chosenHashBits;
+    hashcode += encoding.hashCode();
+    hashcode += 31 * count();
+    hashcode += Arrays.hashCode(register);
+    return hashcode;
   }
 }

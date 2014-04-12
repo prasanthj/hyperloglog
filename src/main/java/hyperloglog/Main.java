@@ -61,8 +61,12 @@ public class Main {
     HyperLogLog deserializedHLL = HyperLogLogUtils.deserializeHLL(in);
     System.out.println("Original HLL: " + hll.toString());
     System.out.println("Deserialized HLL: " + deserializedHLL.toString());
-    System.out.println("Is deserialized HLL same as original HLL? : "
+    System.out.println("String equals between deserialized vs original HLL? : "
         + hll.toStringExtended().equals(deserializedHLL.toStringExtended()));
+    System.out.println("equals() between deserialized vs original HLL? : "
+        + hll.equals(deserializedHLL));
+    System.out.println("hashcode() between deserialized vs original HLL? : "
+        + (hll.hashCode() == deserializedHLL.hashCode()));
     in.close();
   }
 }
