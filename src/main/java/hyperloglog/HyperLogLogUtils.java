@@ -121,7 +121,7 @@ public class HyperLogLogUtils {
     if (enc.equals(EncodingType.SPARSE)) {
 
     } else if (enc.equals(EncodingType.DENSE)) {
-      int lzr = getMax(hll.getRegister());
+      int lzr = hll.getHLLRegister().getMaxRegisterValue();
       bitWidth = getBitWidth(lzr);
       fourthByte |= (bitWidth & 7);
     } else {
@@ -134,19 +134,9 @@ public class HyperLogLogUtils {
     writeVulong(out, estCount);
 
     if (enc.equals(EncodingType.DENSE)) {
-      byte[] register = hll.getRegister();
+      byte[] register = hll.getHLLRegister().getRegister();
       bitpackHLLRegister(out, register, bitWidth);
     }
-  }
-
-  private static int getMax(byte[] register) {
-    int max = 0;
-    for (byte b : register) {
-      if (b > max) {
-        max = b;
-      }
-    }
-    return max;
   }
 
   public static HyperLogLog deserializeHLL(InputStream in) throws IOException {

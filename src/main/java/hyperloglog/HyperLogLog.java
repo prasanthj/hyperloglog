@@ -1,7 +1,6 @@
 package hyperloglog;
 
 import java.nio.charset.Charset;
-import java.util.Arrays;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
@@ -30,7 +29,7 @@ public class HyperLogLog {
   // Using p = 14,
   // space required for 8-bit registers = (2 ^ 14) * 8 = 16KB
   // space required for 8-bit registers = (2 ^ 14) * 6 = 12KB
-  private byte[] register;
+  private HLLRegister register;
 
   // Good fast hash function suggested by Guava hashing for the specified bits
   // Default is MurmurHash3_128
@@ -75,7 +74,7 @@ public class HyperLogLog {
     }
     this.p = p;
     this.m = 1 << p;
-    this.register = new byte[m];
+    this.register = new HLLRegister(m);
 
     // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
     // more than sufficient
@@ -189,10 +188,9 @@ public class HyperLogLog {
     // longest run of zeroes
     int lr = findLongestRun(w);
 
-    // update register if the longest run exceeds the previous entry
-    int currentVal = register[registerIdx];
-    if (lr > currentVal) {
-      register[registerIdx] = (byte) lr;
+    // set register and set invalidate count if register value at the specified
+    // index is updated
+    if (register.set(registerIdx, (byte) lr)) {
       invalidateCount = true;
     }
   }
@@ -202,20 +200,12 @@ public class HyperLogLog {
     // compute count only if the register values are updated else return the
     // cached count
     if (invalidateCount || cachedCount < 0) {
-      double sum = 0;
-      long numZeros = 0;
-      for (int i = 0; i < register.length; i++) {
-        if (register[i] == 0) {
-          numZeros++;
-          sum += 1;
-        } else {
-          sum += Math.pow(2, -register[i]);
-        }
-      }
+      double sum = register.getSumInversePow2();
+      long numZeros = register.getNumZeroes();
 
       // cardinality estimate from normalized bias corrected harmonic mean on
       // the registers
-      cachedCount = (long) (alpha * (Math.pow(m, 2)) * (1d / (double) sum));
+      cachedCount = (long) (alpha * m * m * (1.0 / sum));
       long pow = (long) Math.pow(2, chosenHashBits);
 
       // HLL algorithm shows stronger bias for values in (2.5 * m) range.
@@ -264,27 +254,29 @@ public class HyperLogLog {
     return 1.04 / Math.sqrt(m);
   }
 
-  public byte[] getRegister() {
+  public HLLRegister getHLLRegister() {
     return register;
   }
 
-  public void setRegister(byte[] register) {
-    this.register = register;
+  public void setHLLRegister(HLLRegister hllReg) {
+    this.register = hllReg;
+  }
+
+  public void setRegister(byte[] reg) {
+    int i = 0;
+    for (byte b : reg) {
+      register.set(i, b);
+      i++;
+    }
   }
 
   public void merge(HyperLogLog hll) {
-    byte[] inRegister = hll.getRegister();
-
-    if (register.length != inRegister.length) {
+    if (p != hll.p || chosenHashBits != hll.chosenHashBits) {
       throw new IllegalArgumentException(
-          "The size of register sets of HyperLogLogs to be merged does not match.");
+          "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
+              + toString() + " Provided: " + hll.toString());
     }
-
-    for (int i = 0; i < inRegister.length; i++) {
-      if (inRegister[i] > register[i]) {
-        register[i] = inRegister[i];
-      }
-    }
+    register.merge(hll.getHLLRegister());
     invalidateCount = true;
   }
 
@@ -303,7 +295,7 @@ public class HyperLogLog {
   }
 
   public String toStringExtended() {
-    return toString() + ", register: " + Arrays.toString(register);
+    return toString() + ", " + register.toString();
   }
 
   public int getNumRegisterIndexBits() {
@@ -333,7 +325,7 @@ public class HyperLogLog {
     long otherCount = other.count();
     return p == other.p && chosenHashBits == other.chosenHashBits
         && encoding.equals(other.encoding) && count == otherCount
-        && Arrays.equals(register, other.register);
+        && register.equals(other.register);
   }
 
   @Override
@@ -343,7 +335,7 @@ public class HyperLogLog {
     hashcode += 31 * chosenHashBits;
     hashcode += encoding.hashCode();
     hashcode += 31 * count();
-    hashcode += Arrays.hashCode(register);
+    hashcode += 31 * register.hashCode();
     return hashcode;
   }
 }
