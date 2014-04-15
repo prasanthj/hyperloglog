@@ -1,6 +1,7 @@
 package hyperloglog;
 
 import static org.junit.Assert.assertEquals;
+import hyperloglog.HyperLogLog.EncodingType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -14,7 +15,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(value = Parameterized.class)
-public class TestHyperLogLog {
+public class TestHyperLogLogDense {
 
   // 5% tolerance for estimated count
   private float longRangeTolerance = 5.0f;
@@ -22,7 +23,7 @@ public class TestHyperLogLog {
 
   private int size;
 
-  public TestHyperLogLog(int n) {
+  public TestHyperLogLogDense(int n) {
     this.size = n;
   }
 
@@ -36,7 +37,7 @@ public class TestHyperLogLog {
   @Test
   public void testHLLAdd() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog();
+    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
     int size = 100;
     for (int i = 0; i < size; i++) {
       hll.addLong(rand.nextLong());
@@ -49,7 +50,7 @@ public class TestHyperLogLog {
   @Test
   public void testHLLAddHalfDistinct() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog();
+    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
     int unique = size/2;
     Set<Long> hashset = new HashSet<Long>();
     for (int i = 0; i < size; i++) {
@@ -64,10 +65,10 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLMerge() {
-    HyperLogLog hll = new HyperLogLog();
-    HyperLogLog hll2 = new HyperLogLog();
-    HyperLogLog hll3 = new HyperLogLog();
-    HyperLogLog hll4 = new HyperLogLog(16, 64);
+    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
+    HyperLogLog hll2 = new HyperLogLog(EncodingType.DENSE);
+    HyperLogLog hll3 = new HyperLogLog(EncodingType.DENSE);
+    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.DENSE);
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
       hll2.addLong(size + i);

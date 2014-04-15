@@ -29,7 +29,8 @@ public class HyperLogLog {
   // Using p = 14,
   // space required for 8-bit registers = (2 ^ 14) * 8 = 16KB
   // space required for 8-bit registers = (2 ^ 14) * 6 = 12KB
-  private HLLRegister denseRegister;
+  private HLLDenseRegister denseRegister;
+  private HLLSparseRegister sparseRegister;
 
   // Good fast hash function suggested by Guava hashing for the specified bits
   // Default is MurmurHash3_128
@@ -49,9 +50,12 @@ public class HyperLogLog {
    * MurmurHash3_128).
    */
   public HyperLogLog() {
-    this(14, 128);
+    this(EncodingType.SPARSE);
   }
 
+  public HyperLogLog(EncodingType enc) {
+    this(14, 128, enc);
+  }
   /**
    * Specify the number of bits in hashcode to be used as register index. Also specify the number
    * bits for hash function. The hash function is chosen by Guava library based on the specified
@@ -62,13 +66,16 @@ public class HyperLogLog {
    *          - bits for hash function
    */
   public HyperLogLog(int p, int numBitsHash) {
+    this(p, numBitsHash, EncodingType.SPARSE);
+  }
+
+  public HyperLogLog(int p, int numBitsHash, EncodingType enc) {
     if (p < MIN_P_VALUE || p > MAX_P_VALUE) {
       throw new IllegalArgumentException("p value should be between " + MIN_P_VALUE + " to "
           + MAX_P_VALUE);
     }
     this.p = p;
     this.m = 1 << p;
-    this.denseRegister = new HLLRegister(p);
 
     // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
     // more than sufficient
@@ -80,9 +87,16 @@ public class HyperLogLog {
     initializeAlpha();
     this.cachedCount = -1;
     this.invalidateCount = false;
-    this.encoding = EncodingType.DENSE;
+    this.encoding = enc;
+    if(enc.equals(EncodingType.SPARSE)) {
+      this.sparseRegister = new HLLSparseRegister(p, 25, 6);
+      this.denseRegister = null;
+    } else {
+      this.sparseRegister = null;
+      this.denseRegister = new HLLDenseRegister(p);
+    }
   }
-
+  
   // see paper for alpha initialization.
   private void initializeAlpha() {
     if (chosenHashBits <= 16) {
@@ -237,11 +251,11 @@ public class HyperLogLog {
     return 1.04 / Math.sqrt(m);
   }
 
-  public HLLRegister getHLLRegister() {
+  public HLLDenseRegister getHLLRegister() {
     return denseRegister;
   }
 
-  public void setHLLRegister(HLLRegister hllReg) {
+  public void setHLLRegister(HLLDenseRegister hllReg) {
     this.denseRegister = hllReg;
   }
 

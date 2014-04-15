@@ -2,7 +2,7 @@ package hyperloglog;
 
 import java.util.Arrays;
 
-public class HLLRegister {
+public class HLLDenseRegister {
 
   private byte[] register;
   private int maxRegisterValue;
@@ -13,7 +13,7 @@ public class HLLRegister {
   private int registerIdx;
   private long w;
 
-  public HLLRegister(int p) {
+  public HLLDenseRegister(int p) {
     this.p = p;
     this.m = 1 << p;
     this.register = new byte[m];
@@ -52,7 +52,7 @@ public class HLLRegister {
     return numZeroes;
   }
 
-  public void merge(HLLRegister hllRegister) {
+  public void merge(HLLDenseRegister hllRegister) {
     byte[] inRegister = hllRegister.getRegister();
 
     if (register.length != inRegister.length) {
@@ -110,10 +110,10 @@ public class HLLRegister {
 
   @Override
   public boolean equals(Object obj) {
-    if (!(obj instanceof HLLRegister)) {
+    if (!(obj instanceof HLLDenseRegister)) {
       return false;
     }
-    HLLRegister other = (HLLRegister) obj;
+    HLLDenseRegister other = (HLLDenseRegister) obj;
     return numZeroes == other.numZeroes && maxRegisterValue == other.maxRegisterValue
         && Arrays.equals(register, other.register);
   }
