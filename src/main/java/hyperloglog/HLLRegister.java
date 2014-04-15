@@ -8,13 +8,19 @@ public class HLLRegister {
   private int maxRegisterValue;
   private int numZeroes;
   private double[] invPow2Register;
+  private int p;
+  private int m;
+  private int registerIdx;
+  private long w;
 
-  public HLLRegister(int size) {
-    this.register = new byte[size];
-    this.invPow2Register = new double[size];
+  public HLLRegister(int p) {
+    this.p = p;
+    this.m = 1 << p;
+    this.register = new byte[m];
+    this.invPow2Register = new double[m];
     Arrays.fill(invPow2Register, 1.0);
     this.maxRegisterValue = 0;
-    this.numZeroes = size;
+    this.numZeroes = m;
   }
 
   public boolean set(int idx, byte value) {
@@ -119,5 +125,18 @@ public class HLLRegister {
     hashcode += 31 * maxRegisterValue;
     hashcode += Arrays.hashCode(register);
     return hashcode;
+  }
+
+  public boolean add(long hashcode) {
+    
+    // LSB p bits
+    registerIdx = (int) (hashcode & (m - 1));
+
+    // MSB 64 - p bits
+    w = hashcode >>> p;
+
+    // longest run of zeroes
+    int lr = Long.numberOfTrailingZeros(w) + 1;
+    return set(registerIdx, (byte) lr);
   }
 }

@@ -20,7 +20,7 @@ public class HyperLogLog {
 
   // number of registers - 2^p
   private int m;
-  private float alpha;
+  private float alphaMM;
   private int chosenHashBits;
 
   // 8-bit registers.
@@ -29,18 +29,12 @@ public class HyperLogLog {
   // Using p = 14,
   // space required for 8-bit registers = (2 ^ 14) * 8 = 16KB
   // space required for 8-bit registers = (2 ^ 14) * 6 = 12KB
-  private HLLRegister register;
+  private HLLRegister denseRegister;
 
   // Good fast hash function suggested by Guava hashing for the specified bits
   // Default is MurmurHash3_128
   private HashFunction hf;
   private HashCode hc;
-
-  // LSB p bits of hashcode
-  private int registerIdx;
-
-  // MSB (64 - p) bits of hashcode
-  private long w;
 
   // counts are cached to avoid complex computation. If register value is updated
   // the count will be computed again.
@@ -74,7 +68,7 @@ public class HyperLogLog {
     }
     this.p = p;
     this.m = 1 << p;
-    this.register = new HLLRegister(m);
+    this.denseRegister = new HLLRegister(p);
 
     // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
     // more than sufficient
@@ -86,21 +80,23 @@ public class HyperLogLog {
     initializeAlpha();
     this.cachedCount = -1;
     this.invalidateCount = false;
-    // TODO: Change it to SPARSE after adding support for sparse encoding
     this.encoding = EncodingType.DENSE;
   }
 
-  // see paper for alpha initialization
+  // see paper for alpha initialization.
   private void initializeAlpha() {
     if (chosenHashBits <= 16) {
-      alpha = 0.673f;
+      alphaMM = 0.673f;
     } else if (chosenHashBits <= 32) {
-      alpha = 0.697f;
+      alphaMM = 0.697f;
     } else if (chosenHashBits <= 64) {
-      alpha = 0.709f;
+      alphaMM = 0.709f;
     } else {
-      alpha = 0.7213f / (float) (1 + 1.079f / m);
+      alphaMM = 0.7213f / (float) (1 + 1.079f / m);
     }
+    
+    // For efficiency alpha is multiplied by m^2
+    alphaMM = alphaMM * m * m;
   }
 
   public void addBoolean(boolean val) {
@@ -179,19 +175,12 @@ public class HyperLogLog {
   }
 
   public void add(long hashcode) {
-    // LSB p bits
-    registerIdx = (int) (hashcode & (m - 1));
-
-    // MSB 64 - p bits
-    w = hashcode >>> p;
-
-    // longest run of zeroes
-    int lr = findLongestRun(w);
-
-    // set register and set invalidate count if register value at the specified
-    // index is updated
-    if (register.set(registerIdx, (byte) lr)) {
-      invalidateCount = true;
+    if(encoding.equals(EncodingType.SPARSE)) {
+      
+    } else {
+      if(denseRegister.add(hashcode)) {
+        invalidateCount = true;
+      }
     }
   }
 
@@ -200,33 +189,36 @@ public class HyperLogLog {
     // compute count only if the register values are updated else return the
     // cached count
     if (invalidateCount || cachedCount < 0) {
-      double sum = register.getSumInversePow2();
-      long numZeros = register.getNumZeroes();
+      if (encoding.equals(EncodingType.SPARSE)) {
 
-      // cardinality estimate from normalized bias corrected harmonic mean on
-      // the registers
-      cachedCount = (long) (alpha * m * m * (1.0 / sum));
-      long pow = (long) Math.pow(2, chosenHashBits);
+      } else {
+        double sum = denseRegister.getSumInversePow2();
+        long numZeros = denseRegister.getNumZeroes();
 
-      // HLL algorithm shows stronger bias for values in (2.5 * m) range.
-      // To compensate for this short range bias, linear counting is used for
-      // values before this short range. The original paper also says similar
-      // bias is seen for long range values due to hash collisions in range >1/30*(2^32)
-      // For the default case, we do not have to worry about this long range bias
-      // as the paper used 32-bit hashing and we use 64-bit hashing as default.
-      // 2^64 values are too high to observe long range bias.
-      if (cachedCount <= 2.5 * m) {
-        if (numZeros != 0) {
-          cachedCount = linearCount(numZeros);
-        }
-      } else if (chosenHashBits < 64 && cachedCount > (0.033333 * pow)) {
+        // cardinality estimate from normalized bias corrected harmonic mean on
+        // the registers
+        cachedCount = (long) (alphaMM * (1.0 / sum));
+        long pow = (long) Math.pow(2, chosenHashBits);
 
-        // long range bias for 32-bit hashcodes
-        if (cachedCount > (1 / 30) * pow) {
-          cachedCount = (long) (-pow * Math.log(1.0 - (double) cachedCount / (double) pow));
+        // HLL algorithm shows stronger bias for values in (2.5 * m) range.
+        // To compensate for this short range bias, linear counting is used for
+        // values before this short range. The original paper also says similar
+        // bias is seen for long range values due to hash collisions in range >1/30*(2^32)
+        // For the default case, we do not have to worry about this long range bias
+        // as the paper used 32-bit hashing and we use 64-bit hashing as default.
+        // 2^64 values are too high to observe long range bias.
+        if (cachedCount <= 2.5 * m) {
+          if (numZeros != 0) {
+            cachedCount = linearCount(numZeros);
+          }
+        } else if (chosenHashBits < 64 && cachedCount > (0.033333 * pow)) {
+
+          // long range bias for 32-bit hashcodes
+          if (cachedCount > (1 / 30) * pow) {
+            cachedCount = (long) (-pow * Math.log(1.0 - (double) cachedCount / (double) pow));
+          }
         }
       }
-
       invalidateCount = false;
     }
     return cachedCount;
@@ -241,31 +233,22 @@ public class HyperLogLog {
     return (long) (Math.round(m * Math.log(m / ((double) numZeros))));
   }
 
-  private int findLongestRun(long v) {
-    int i = 1;
-    while ((v & 1) == 0) {
-      v = v >>> 1;
-      i++;
-    }
-    return i;
-  }
-
   public double getStandardError() {
     return 1.04 / Math.sqrt(m);
   }
 
   public HLLRegister getHLLRegister() {
-    return register;
+    return denseRegister;
   }
 
   public void setHLLRegister(HLLRegister hllReg) {
-    this.register = hllReg;
+    this.denseRegister = hllReg;
   }
 
   public void setRegister(byte[] reg) {
     int i = 0;
     for (byte b : reg) {
-      register.set(i, b);
+      denseRegister.set(i, b);
       i++;
     }
   }
@@ -276,7 +259,7 @@ public class HyperLogLog {
           "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
               + toString() + " Provided: " + hll.toString());
     }
-    register.merge(hll.getHLLRegister());
+    denseRegister.merge(hll.getHLLRegister());
     invalidateCount = true;
   }
 
@@ -295,7 +278,7 @@ public class HyperLogLog {
   }
 
   public String toStringExtended() {
-    return toString() + ", " + register.toString();
+    return toString() + ", " + denseRegister.toString();
   }
 
   public int getNumRegisterIndexBits() {
@@ -325,7 +308,7 @@ public class HyperLogLog {
     long otherCount = other.count();
     return p == other.p && chosenHashBits == other.chosenHashBits
         && encoding.equals(other.encoding) && count == otherCount
-        && register.equals(other.register);
+        && denseRegister.equals(other.denseRegister);
   }
 
   @Override
@@ -335,7 +318,7 @@ public class HyperLogLog {
     hashcode += 31 * chosenHashBits;
     hashcode += encoding.hashCode();
     hashcode += 31 * count();
-    hashcode += 31 * register.hashCode();
+    hashcode += 31 * denseRegister.hashCode();
     return hashcode;
   }
 }

@@ -2,112 +2,64 @@ package hyperloglog;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
+@RunWith(value = Parameterized.class)
 public class TestHyperLogLog {
 
   // 5% tolerance for estimated count
-  private float tolerance = 5.0f;
+  private float longRangeTolerance = 5.0f;
+  private float shortRangeTolerance = 3.0f;
+
+  private int size;
+
+  public TestHyperLogLog(int n) {
+    this.size = n;
+  }
+
+  @Parameters
+  public static Collection<Object[]> data() {
+    Object[][] data = new Object[][] { { 2 }, { 10 }, { 100 }, { 1000 }, { 10000 }, { 100000 },
+        { 1000000 } };
+    return Arrays.asList(data);
+  }
 
   @Test
-  public void testHLLAdd100() {
-    Random rand = new Random();
+  public void testHLLAdd() {
+    Random rand = new Random(size);
     HyperLogLog hll = new HyperLogLog();
     int size = 100;
     for (int i = 0; i < size; i++) {
       hll.addLong(rand.nextLong());
     }
-    double delta = tolerance * size / 100;
+    double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
+    double delta = threshold * size / 100;
     assertEquals((double) size, (double) hll.count(), delta);
   }
 
   @Test
-  public void testHLLAdd1000() {
-    Random rand = new Random();
+  public void testHLLAddHalfDistinct() {
+    Random rand = new Random(size);
     HyperLogLog hll = new HyperLogLog();
-    int size = 1000;
+    int unique = size/2;
+    Set<Long> hashset = new HashSet<Long>();
     for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextLong());
+      long val = rand.nextInt(unique);
+      hashset.add(val);
+      hll.addLong(val);
     }
-    double delta = tolerance * size / 100;
-    assertEquals((double) size, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd10000() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 10000;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextLong());
-    }
-    double delta = tolerance * size / 100;
-    assertEquals((double) size, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd100000() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 100000;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextLong());
-    }
-    double delta = tolerance * size / 100;
-    assertEquals((double) size, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd1000000() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 1000000;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextLong());
-    }
-    double delta = tolerance * size / 100;
-    assertEquals((double) size, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd20() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 100000;
-    int unique = 20;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextInt(unique));
-    }
-    double delta = tolerance * unique / 100;
-    assertEquals((double) unique, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd2000() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 100000;
-    int unique = 2000;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextInt(unique));
-    }
-    double delta = tolerance * unique / 100;
-    assertEquals((double) unique, (double) hll.count(), delta);
-  }
-
-  @Test
-  public void testHLLAdd20000() {
-    Random rand = new Random();
-    HyperLogLog hll = new HyperLogLog();
-    int size = 100000;
-    int unique = 20000;
-    for (int i = 0; i < size; i++) {
-      hll.addLong(rand.nextInt(unique));
-    }
-    double delta = tolerance * unique / 100;
-    assertEquals((double) unique, (double) hll.count(), delta);
+    double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
+    double delta = threshold * hashset.size() / 100;
+    assertEquals((double) hashset.size(), (double) hll.count(), delta);
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -116,13 +68,13 @@ public class TestHyperLogLog {
     HyperLogLog hll2 = new HyperLogLog();
     HyperLogLog hll3 = new HyperLogLog();
     HyperLogLog hll4 = new HyperLogLog(16, 64);
-    int size = 10000;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
-      hll2.addLong(10000 + i);
-      hll3.addLong(30000 + i);
+      hll2.addLong(size + i);
+      hll3.addLong(2 * size + i);
     }
-    double delta = tolerance * size / 100;
+    double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
+    double delta = threshold * size / 100;
     assertEquals((double) size, (double) hll.count(), delta);
     assertEquals((double) size, (double) hll2.count(), delta);
 
