@@ -1,18 +1,17 @@
 package hyperloglog;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
 import com.google.common.collect.Lists;
-import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 
 public class HLLSparseRegister {
 
   private int[] sparseList;
   // 1/8th the size of sparse list
-  private int[] tempList;
+  private long[] tempList;
   private int sparseListIdx;
   private int tempListIdx;
   private final int p;
@@ -20,18 +19,20 @@ public class HLLSparseRegister {
   private final int qPrime;
   private final int mask;
   private final int pPrimeMask;
+  private final int qPrimeMask;
 
   public HLLSparseRegister(int p, int pp, int qp) {
     this.p = p;
     int size = 6 * (1 << p);
     this.sparseList = new int[size / 4];
-    this.tempList = new int[size / 32];
+    this.tempList = new long[size / 32];
     this.sparseListIdx = 0;
     this.tempListIdx = 0;
     this.pPrime = pp;
     this.qPrime = qp;
     this.mask = ((1 << pPrime) - 1) ^ ((1 << p) - 1);
     this.pPrimeMask = ((1 << pPrime) - 1);
+    this.qPrimeMask = (1 << qPrime) - 1;
   }
 
   public int add(long hashcode) {
@@ -43,53 +44,74 @@ public class HLLSparseRegister {
       int encodedHash = encodeHash(hashcode);
       tempList[tempListIdx++] = encodedHash;
     } else {
-      tempList = sortTempList();
-      merge();
+      tempList = sortTempList(tempList, tempListIdx);
+      sparseList = merge(sparseList, sparseListIdx, tempList, tempListIdx);
       tempListIdx = 0;
     }
 
     return 0;
   }
 
-  private void merge() {
+  public int[] merge(int[] sl, int sIdx, long[] tl, int tIdx) {
+    int[] scratch = new int[sl.length];
+    int i = 0;
+    if (sIdx == 0) {
+      // copy from tempList directly to sparseList
+      for (i = 0; i < tIdx; i++) {
+        scratch[i] = encodeHash(tl[i]);
+      }
+      sparseListIdx = i;
+    } else {
 
+    }
+    return scratch;
   }
 
-  private int[] sortTempList() {
-    List<Integer> outList = Lists.newArrayList(tempListIdx);
-    for (int t : tempList) {
-      outList.add(t);
+  public long[] sortTempList(long[] tl, int tlIdx) {
+    List<Long> outList = Lists.newArrayListWithCapacity(tlIdx);
+    for (int i = 0; i < tlIdx; i++) {
+      outList.add(tl[i]);
     }
-    tempList = null;
-    Collections.sort(outList, new Comparator<Integer>() {
 
-      public int compare(Integer o1, Integer o2) {
-        int idx1 = o1.intValue() >>> 7;
-        int idx2 = o2.intValue() >>> 7;
+    Collections.sort(outList, new Comparator<Long>() {
+
+      public int compare(Long o1, Long o2) {
+        long val1 = o1;
+        long val2 = o2;
+        int idx1 = (int) (val1 & pPrimeMask);
+        int idx2 = (int) (val2 & pPrimeMask);
         if (idx1 > idx2) {
           return 1;
         } else if (idx2 > idx1) {
           return -1;
         } else {
-          int val1 = getZeroRuns(o1.intValue());
+          if (val1 < 0 && val2 < 0) {
+            // both negative
+            val1 = (val1 >>> pPrime) & qPrimeMask;
+            val2 = (val2 >>> pPrime) & qPrimeMask;
+          } else if (val1 < 0 && val2 >= 0) {
+            // val1 is negative and it must have more trailing zeros
+            return 1;
+          } else if (val2 < 0 && val1 >= 0) {
+            // val2 is negative and it must have more trailing zeros
+            return -1;
+          } else {
+            // both positive
+            val1 = Integer.numberOfTrailingZeros((int) (val1 >>> p));
+            val2 = Integer.numberOfTrailingZeros((int) (val2 >>> p));
+          }
+
+          if (val1 > val2) {
+            return 1;
+          } else if (val2 > val1) {
+            return -1;
+          }
         }
         return 0;
       }
 
     });
-    return Ints.toArray(outList);
-  }
-
-  private int getZeroRuns(int i) {
-    int run = 0;
-    if ((i & 0xfffffffe) == 0) {
-
-    } else {
-      int runMask = (1 << qPrime + (pPrime - p)) - 1;
-      int runVal = (i >>> 1) & runMask;
-      return Integer.numberOfTrailingZeros(runVal);
-    }
-    return run;
+    return Longs.toArray(outList);
   }
 
   /**
@@ -116,7 +138,7 @@ public class HLLSparseRegister {
    *      q' bits encodes the longest trailing zero runs from in (w-p) input bits
    * b  - 0 if longest trailing zero run is contained within (p'-p) bits
    *      1 if longest trailing zero run is computeed from (w-p) input bits and
-   *      its value is stored in q' bits  
+   *      its value is stored in q' bits
    * </pre>
    * @param hashcode
    * @return
@@ -131,8 +153,6 @@ public class HLLSparseRegister {
       long newHashCode = hashcode & pPrimeMask;
       newHashCode |= ntr << pPrime;
       newHashCode |= 0x80000000;
-      int min = Integer.MIN_VALUE;
-      int max = Integer.MAX_VALUE;
       return (int) newHashCode;
     } else {
       // q is contained within p' - p
