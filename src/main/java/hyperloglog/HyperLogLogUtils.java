@@ -1,6 +1,7 @@
 package hyperloglog;
 
 import hyperloglog.HyperLogLog.EncodingType;
+import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -81,7 +82,7 @@ public class HyperLogLogUtils {
    * HyperLogLog is serialized using the following format
    * 
    * <pre>
-   * |-4 byte-|------varlong----|----(optional)---|----------|  
+   * |-4 byte-|------varlong----|varint (optional)|----------|  
    * ---------------------------------------------------------
    * | header | estimated-count | register-length | register |
    * ---------------------------------------------------------
@@ -90,7 +91,7 @@ public class HyperLogLogUtils {
    * 3 bytes - HLL magic string to identify serialized stream
    * 4 bits  - p (number of bits to be used as register index)
    * 1 bit   - hash function (0 - MurmurHash3_32, 1 - MurmurHash3_128)
-   * 3 bits  - encoding (000 - sparse, 001..110 - n bit packing, 111 - unused)
+   * 3 bits  - encoding (000 - sparse, 001..110 - n bit packing, 111 - no bit packing)
    * 
    * Followed by header are 3 fields that are required for reconstruction
    * of hyperloglog
@@ -119,14 +120,15 @@ public class HyperLogLogUtils {
 
     int bitWidth = 0;
     EncodingType enc = hll.getEncoding();
-    if (enc.equals(EncodingType.SPARSE)) {
-
-    } else if (enc.equals(EncodingType.DENSE)) {
-      int lzr = hll.getHLLRegister().getMaxRegisterValue();
+    if (enc.equals(EncodingType.DENSE)) {
+      int lzr = hll.getHLLDenseRegister().getMaxRegisterValue();
       bitWidth = getBitWidth(lzr);
-      fourthByte |= (bitWidth & 7);
-    } else {
-      throw new IllegalArgumentException("Unknown encoding encountered.");
+      if (bitWidth >= 7) {
+        fourthByte |= 7;
+        bitWidth = 8;
+      } else {
+        fourthByte |= (bitWidth & 7);
+      }
     }
 
     out.write(fourthByte);
@@ -135,8 +137,23 @@ public class HyperLogLogUtils {
     writeVulong(out, estCount);
 
     if (enc.equals(EncodingType.DENSE)) {
-      byte[] register = hll.getHLLRegister().getRegister();
+      byte[] register = hll.getHLLDenseRegister().getRegister();
       bitpackHLLRegister(out, register, bitWidth);
+    } else if (enc.equals(EncodingType.SPARSE)) {
+      Int2ByteSortedMap sparseMap = hll.getHLLSparseRegister().getSparseMap();
+      writeVulong(out, sparseMap.size());
+      int prev = 0;
+      for (Map.Entry<Integer, Byte> entry : sparseMap.entrySet()) {
+        if (prev == 0) {
+          prev = (entry.getKey() << HyperLogLog.Q_PRIME_VALUE) | entry.getValue();
+          writeVulong(out, prev);
+        } else {
+          int curr = (entry.getKey() << HyperLogLog.Q_PRIME_VALUE) | entry.getValue();
+          int delta = curr - prev;
+          writeVulong(out, delta);
+          prev = curr;
+        }
+      }
     }
   }
 
@@ -160,24 +177,46 @@ public class HyperLogLogUtils {
       bitSize = enc;
       encoding = EncodingType.DENSE;
     } else {
-      throw new IllegalArgumentException("Unknown encoding encountered.");
+      bitSize = 8;
+      encoding = EncodingType.DENSE;
     }
 
     // estimated count
     long estCount = readVulong(in);
 
-    byte[] register = null;
+    HyperLogLog result = null;
     if (encoding.equals(EncodingType.SPARSE)) {
-      long numRegisterEntries = readVulong(in);
-      // TODO: implement SPARSE deserialization
+      result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+          .setEncoding(EncodingType.SPARSE).build();
+      int numRegisterEntries = (int) readVulong(in);
+      int[] reg = new int[numRegisterEntries];
+      int prev = 0;
+      if (numRegisterEntries > 0) {
+        prev = (int) readVulong(in);
+        reg[0] = prev;
+      }
+      int delta = 0;
+      int curr = 0;
+      for (int i = 1; i < numRegisterEntries; i++) {
+        delta = (int) readVulong(in);
+        curr = prev + delta;
+        reg[i] = curr;
+        prev = curr;
+      }
+      result.setHLLSparseRegister(reg);
     } else {
+      if (bitSize == 8) {
+        result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+            .setEncoding(EncodingType.DENSE).enableBitPacking(false).build();
+      } else {
+        result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+            .setEncoding(EncodingType.DENSE).build();
+      }
       int m = 1 << p;
-      register = unpackHLLRegister(in, m, bitSize);
+      byte[] register = unpackHLLRegister(in, m, bitSize);
+      result.setHLLDenseRegister(register);
     }
 
-    HyperLogLog result = new HyperLogLog(p, hb);
-    result.setEncoding(encoding);
-    result.setRegister(register);
     result.setCount(estCount);
 
     return result;

@@ -11,12 +11,12 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(value = Parameterized.class)
-public class TestHLLSparseRegister {
+public class TestSparseEncodeHash {
 
   private long input;
   private int expected;
 
-  public TestHLLSparseRegister(long i, int e) {
+  public TestSparseEncodeHash(long i, int e) {
     this.input = i;
     this.expected = e;
   }

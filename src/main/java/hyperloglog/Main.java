@@ -15,7 +15,7 @@ import com.google.common.collect.Lists;
 
 public class Main {
 
-  final static int COUNT = 1000000;
+  final static int COUNT = 1000;
   final static int SEED = 100;
   final static String fileName = "src/main/resources/hll.dat";
 
@@ -31,7 +31,7 @@ public class Main {
 
   public static void main(String[] args) throws IOException {
     long start = System.currentTimeMillis();
-    HyperLogLog hll = new HyperLogLog();
+    HyperLogLog hll = HyperLogLog.builder().build();
     List<Long> data = getRandomData(COUNT);
     Set<Long> uniqueData = new HashSet<Long>(data);
     File outFile = new File(fileName);
@@ -49,7 +49,7 @@ public class Main {
     float err = HyperLogLogUtils.getRelativeError(actualCount, estCount);
     System.out.println("HyperLogLog - " + " Actual count: " + actualCount + " Estimated count: "
         + estCount + " Relative Error: " + err + "% Execution time: " + time + " ms");
-    System.out.println("Actual size: " + hll.getHLLRegister().size() + " bytes");
+    //System.out.println("Actual size: " + hll.getHLLDenseRegister().size() + " bytes");
 
     HyperLogLogUtils.serializeHLL(out, hll);
     System.out.println("Serialized HLL size: " + out.size() + " bytes");

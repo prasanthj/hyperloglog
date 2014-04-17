@@ -17,9 +17,9 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(value = Parameterized.class)
 public class TestHyperLogLogDense {
 
-  // 5% tolerance for estimated count
+  // 5% tolerance for long range bias and 1% for short range bias
   private float longRangeTolerance = 5.0f;
-  private float shortRangeTolerance = 3.0f;
+  private float shortRangeTolerance = 1.0f;
 
   private int size;
 
@@ -37,7 +37,7 @@ public class TestHyperLogLogDense {
   @Test
   public void testHLLAdd() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
     int size = 100;
     for (int i = 0; i < size; i++) {
       hll.addLong(rand.nextLong());
@@ -50,8 +50,8 @@ public class TestHyperLogLogDense {
   @Test
   public void testHLLAddHalfDistinct() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
-    int unique = size/2;
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    int unique = size / 2;
     Set<Long> hashset = new HashSet<Long>();
     for (int i = 0; i < size; i++) {
       long val = rand.nextInt(unique);
@@ -61,38 +61,6 @@ public class TestHyperLogLogDense {
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
     double delta = threshold * hashset.size() / 100;
     assertEquals((double) hashset.size(), (double) hll.count(), delta);
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testHLLMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.DENSE);
-    for (int i = 0; i < size; i++) {
-      hll.addLong(i);
-      hll2.addLong(size + i);
-      hll3.addLong(2 * size + i);
-    }
-    double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
-    double delta = threshold * size / 100;
-    assertEquals((double) size, (double) hll.count(), delta);
-    assertEquals((double) size, (double) hll2.count(), delta);
-
-    // merge
-    hll.merge(hll2);
-    assertEquals((double) 2 * size, (double) hll.count(), delta);
-
-    // merge should update registers and hence the count
-    hll.merge(hll2);
-    assertEquals((double) 2 * size, (double) hll.count(), delta);
-
-    // new merge
-    hll.merge(hll3);
-    assertEquals((double) 3 * size, (double) hll.count(), delta);
-
-    // invalid merge -- register set size doesn't match
-    hll.merge(hll4);
   }
 
 }

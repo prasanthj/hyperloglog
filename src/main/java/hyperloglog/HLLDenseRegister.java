@@ -2,7 +2,7 @@ package hyperloglog;
 
 import java.util.Arrays;
 
-public class HLLDenseRegister {
+public class HLLDenseRegister implements HLLRegister {
 
   private byte[] register;
   private int maxRegisterValue;
@@ -14,6 +14,10 @@ public class HLLDenseRegister {
   private long w;
 
   public HLLDenseRegister(int p) {
+    this(p, true);
+  }
+
+  public HLLDenseRegister(int p, boolean bitPack) {
     this.p = p;
     this.m = 1 << p;
     this.register = new byte[m];
@@ -21,6 +25,9 @@ public class HLLDenseRegister {
     Arrays.fill(invPow2Register, 1.0);
     this.maxRegisterValue = 0;
     this.numZeroes = m;
+    if (bitPack == false) {
+      this.maxRegisterValue = 0xff;
+    }
   }
 
   public boolean set(int idx, byte value) {
@@ -52,26 +59,31 @@ public class HLLDenseRegister {
     return numZeroes;
   }
 
-  public void merge(HLLDenseRegister hllRegister) {
-    byte[] inRegister = hllRegister.getRegister();
+  public void merge(HLLRegister hllRegister) {
+    if (hllRegister instanceof HLLDenseRegister) {
+      HLLDenseRegister hdr = (HLLDenseRegister) hllRegister;
+      byte[] inRegister = hdr.getRegister();
 
-    if (register.length != inRegister.length) {
-      throw new IllegalArgumentException(
-          "The size of register sets of HyperLogLogs to be merged does not match.");
-    }
-
-    for (int i = 0; i < inRegister.length; i++) {
-      if (inRegister[i] > register[i]) {
-        if (register[i] == 0) {
-          numZeroes--;
-        }
-        register[i] = inRegister[i];
-        invPow2Register[i] = Math.pow(2, -inRegister[i]);
+      if (register.length != inRegister.length) {
+        throw new IllegalArgumentException(
+            "The size of register sets of HyperLogLogs to be merged does not match.");
       }
-    }
 
-    if (hllRegister.getMaxRegisterValue() > maxRegisterValue) {
-      maxRegisterValue = hllRegister.getMaxRegisterValue();
+      for (int i = 0; i < inRegister.length; i++) {
+        if (inRegister[i] > register[i]) {
+          if (register[i] == 0) {
+            numZeroes--;
+          }
+          register[i] = inRegister[i];
+          invPow2Register[i] = Math.pow(2, -inRegister[i]);
+        }
+      }
+
+      if (hdr.getMaxRegisterValue() > maxRegisterValue) {
+        maxRegisterValue = hdr.getMaxRegisterValue();
+      }
+    } else {
+      throw new IllegalArgumentException("Specified register is not instance of HLLDenseRegister");
     }
   }
 
@@ -98,14 +110,18 @@ public class HLLDenseRegister {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("HLLRegister - ");
-    sb.append("numZeroes: ");
+    sb.append("HLLDenseRegister - ");
+    sb.append("p: ");
+    sb.append(p);
+    sb.append(" numZeroes: ");
     sb.append(numZeroes);
     sb.append(" maxRegisterValue: ");
     sb.append(maxRegisterValue);
-    sb.append(" register: ");
-    sb.append(Arrays.toString(register));
     return sb.toString();
+  }
+
+  public String toExtendedString() {
+    return toString() + " register: " + Arrays.toString(register);
   }
 
   @Override
@@ -128,7 +144,7 @@ public class HLLDenseRegister {
   }
 
   public boolean add(long hashcode) {
-    
+
     // LSB p bits
     registerIdx = (int) (hashcode & (m - 1));
 
@@ -139,4 +155,5 @@ public class HLLDenseRegister {
     int lr = Long.numberOfTrailingZeros(w) + 1;
     return set(registerIdx, (byte) lr);
   }
+
 }

@@ -5,7 +5,7 @@ import java.util.Map;
 import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
 import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
-public class HLLSparseRegister {
+public class HLLSparseRegister implements HLLRegister {
 
   private Int2ByteSortedMap sparseMap;
   private int[] tempList;
@@ -117,11 +117,16 @@ public class HLLSparseRegister {
     return sparseMap.size();
   }
 
-  public void merge(HLLSparseRegister hllRegister) {
-    for (Map.Entry<Integer, Byte> entry : hllRegister.getSparseMap().entrySet()) {
-      int key = entry.getKey();
-      byte value = entry.getValue();
-      set(key, value);
+  public void merge(HLLRegister hllRegister) {
+    if (hllRegister instanceof HLLSparseRegister) {
+      HLLSparseRegister hsr = (HLLSparseRegister) hllRegister;
+      for (Map.Entry<Integer, Byte> entry : hsr.getSparseMap().entrySet()) {
+        int key = entry.getKey();
+        byte value = entry.getValue();
+        set(key, value);
+      }
+    } else {
+      throw new IllegalArgumentException("Specified register not instance of HLLSparseRegister");
     }
   }
 
@@ -144,6 +149,13 @@ public class HLLSparseRegister {
     return sparseMap;
   }
 
+  public Int2ByteSortedMap getMergedSparseMap() {
+    if (tempListIdx != 0) {
+      mergeTempListToSparseMap();
+    }
+    return sparseMap;
+  }
+
   public int getP() {
     return p;
   }
@@ -151,4 +163,55 @@ public class HLLSparseRegister {
   public int getPPrime() {
     return pPrime;
   }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("HLLSparseRegister - ");
+    sb.append("p: ");
+    sb.append(p);
+    sb.append(" pPrime: ");
+    sb.append(pPrime);
+    sb.append(" qPrime: ");
+    sb.append(qPrime);
+    return sb.toString();
+  }
+
+  public String toExtendedString() {
+    return toString() + " register: " + sparseMap.toString();
+  }
+  
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof HLLSparseRegister)) {
+      return false;
+    }
+    HLLSparseRegister other = (HLLSparseRegister) obj;
+    boolean result = p == other.p && pPrime == other.pPrime && qPrime == other.qPrime
+        && tempListIdx == other.tempListIdx;
+    if (result) {
+      for (int i = 0; i < tempListIdx; i++) {
+        if (tempList[i] != other.tempList[i]) {
+          return false;
+        }
+      }
+
+      result = result && sparseMap.equals(other.sparseMap);
+    }
+    return result;
+  }
+
+  @Override
+  public int hashCode() {
+    int hashcode = 0;
+    hashcode += 31 * p;
+    hashcode += 31 * pPrime;
+    hashcode += 31 * qPrime;
+    for (int i = 0; i < tempListIdx; i++) {
+      hashcode += 31 * tempList[tempListIdx];
+    }
+    hashcode += sparseMap.hashCode();
+    return hashcode;
+  }
+
 }

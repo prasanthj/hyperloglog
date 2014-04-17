@@ -12,10 +12,11 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLDenseMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.DENSE);
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+        .setEncoding(EncodingType.DENSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
@@ -48,11 +49,12 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLSparseMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.SPARSE);
-    int size = 1000;
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+        .setEncoding(EncodingType.SPARSE).build();
+    int size = 500;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
       hll2.addLong(size + i);
@@ -84,10 +86,11 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLSparseDenseMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.DENSE);
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+        .setEncoding(EncodingType.DENSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
@@ -120,10 +123,11 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLDenseSparseMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.DENSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.SPARSE);
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+        .setEncoding(EncodingType.SPARSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
@@ -156,11 +160,12 @@ public class TestHyperLogLog {
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLSparseOverflowMerge() {
-    HyperLogLog hll = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll2 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll3 = new HyperLogLog(EncodingType.SPARSE);
-    HyperLogLog hll4 = new HyperLogLog(16, 64, EncodingType.SPARSE);
-    int size = 6000;
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+        .setEncoding(EncodingType.SPARSE).build();
+    int size = 1000;
     for (int i = 0; i < size; i++) {
       hll.addLong(i);
       hll2.addLong(size + i);
@@ -190,4 +195,15 @@ public class TestHyperLogLog {
     hll.merge(hll4);
   }
 
+  @Test
+  public void testHLLSparseMoreRegisterBits() {
+    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).setNumRegisterIndexBits(16).build();
+    int size = 1000;
+    for (int i = 0; i < size; i++) {
+      hll.addLong(i);
+    }
+    double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
+    double delta = threshold * size / 100;
+    assertEquals((double) size, (double) hll.count(), delta);
+  }
 }

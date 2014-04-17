@@ -1,7 +1,6 @@
 package hyperloglog;
 
 import static org.junit.Assert.assertEquals;
-import hyperloglog.HyperLogLog.EncodingType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,7 +16,7 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(value = Parameterized.class)
 public class TestHyperLogLogSparse {
 
-  // 5% tolerance for estimated count
+  // 5% tolerance for long range bias and 0.5% for short range bias
   private float longRangeTolerance = 5.0f;
   private float shortRangeTolerance = 0.5f;
 
@@ -37,7 +36,7 @@ public class TestHyperLogLogSparse {
   @Test
   public void testHLLAdd() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog(EncodingType.SPARSE);
+    HyperLogLog hll = HyperLogLog.builder().build();
     int size = 100;
     for (int i = 0; i < size; i++) {
       hll.addLong(rand.nextLong());
@@ -50,8 +49,8 @@ public class TestHyperLogLogSparse {
   @Test
   public void testHLLAddHalfDistinct() {
     Random rand = new Random(size);
-    HyperLogLog hll = new HyperLogLog(EncodingType.SPARSE);
-    int unique = size/2;
+    HyperLogLog hll = HyperLogLog.builder().build();
+    int unique = size / 2;
     Set<Long> hashset = new HashSet<Long>();
     for (int i = 0; i < size; i++) {
       long val = rand.nextInt(unique);

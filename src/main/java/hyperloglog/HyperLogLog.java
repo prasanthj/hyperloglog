@@ -11,17 +11,21 @@ public class HyperLogLog {
   public static final int MIN_P_VALUE = 4;
   public static final int MAX_P_VALUE = 16;
 
+  // constants for SPARSE encoding
+  public static final int P_PRIME_VALUE = 25;
+  public static final int Q_PRIME_VALUE = 6;
+
   public static enum EncodingType {
     SPARSE, DENSE
   }
 
   // number of bits to address registers
-  private int p;
+  private final int p;
 
   // number of registers - 2^p
-  private int m;
+  private final int m;
   private float alphaMM;
-  private int chosenHashBits;
+  private final int chosenHashBits;
 
   // 8-bit registers.
   // TODO: This can further be space optimized using 6 bit registers as longest
@@ -34,7 +38,7 @@ public class HyperLogLog {
 
   // Good fast hash function suggested by Guava hashing for the specified bits
   // Default is MurmurHash3_128
-  private HashFunction hf;
+  private final HashFunction hf;
   private HashCode hc;
 
   // counts are cached to avoid complex computation. If register value is updated
@@ -45,60 +49,84 @@ public class HyperLogLog {
   private EncodingType encoding;
   private int encodingSwitchThreshold;
 
-  /**
-   * By default, HyperLogLog uses 14 LSB bits of hashcode as register index and a 64 bit
-   * hashfunction (Good hash function for 64bit as suggested by Google Guava library is
-   * MurmurHash3_128).
-   */
-  public HyperLogLog() {
-    this(EncodingType.SPARSE);
-  }
-
-  public HyperLogLog(EncodingType enc) {
-    this(14, 128, enc);
-  }
-
-  /**
-   * Specify the number of bits in hashcode to be used as register index. Also specify the number
-   * bits for hash function. The hash function is chosen by Guava library based on the specified
-   * bits.
-   * @param p
-   *          - number of register bits in the range 4 to 16 (inclusive)
-   * @param numBitsHash
-   *          - bits for hash function
-   */
-  public HyperLogLog(int p, int numBitsHash) {
-    this(p, numBitsHash, EncodingType.SPARSE);
-  }
-
-  public HyperLogLog(int p, int numBitsHash, EncodingType enc) {
-    if (p < MIN_P_VALUE || p > MAX_P_VALUE) {
+  private HyperLogLog(HyperLogLogBuilder hllBuilder) {
+    if (hllBuilder.numRegisterIndexBits < MIN_P_VALUE
+        || hllBuilder.numRegisterIndexBits > MAX_P_VALUE) {
       throw new IllegalArgumentException("p value should be between " + MIN_P_VALUE + " to "
           + MAX_P_VALUE);
     }
-    this.p = p;
+    this.p = hllBuilder.numRegisterIndexBits;
     this.m = 1 << p;
 
     // the threshold should be less than 12K bytes for p = 14.
-    this.encodingSwitchThreshold = ((m * 6) / 8);
+    // The reason to divide by 5 is, in sparse mode after serialization the entries
+    // in sparse map are compressed, and delta encoded as varints. The worst case
+    // size of varints are 5 bytes. Hence, 12K/5 ~= 2400 entries in sparse map.
+    if (hllBuilder.bitPacking) {
+      this.encodingSwitchThreshold = ((m * 6) / 8) / 5;
+    } else {
+      // if bitpacking is disabled, all register values takes 8 bits and hence
+      // we can be more flexible with the threshold. For p=14, 16K/5 = 3200 entries
+      // in sparse map can be allowed.
+      this.encodingSwitchThreshold = m / 3;
+    }
 
     // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
     // more than sufficient
-    if (numBitsHash > 128) {
-      numBitsHash = 128;
+    if (hllBuilder.numHashBits > 128) {
+      this.hf = Hashing.goodFastHash(128);
+    } else {
+      this.hf = Hashing.goodFastHash(hllBuilder.numHashBits);
     }
-    this.hf = Hashing.goodFastHash(numBitsHash);
     this.chosenHashBits = hf.bits();
     initializeAlpha();
     this.cachedCount = -1;
     this.invalidateCount = false;
-    this.encoding = enc;
-    if (enc.equals(EncodingType.SPARSE)) {
-      this.sparseRegister = new HLLSparseRegister(p, 25, 6);
+    this.encoding = hllBuilder.encoding;
+    if (encoding.equals(EncodingType.SPARSE)) {
+      this.sparseRegister = new HLLSparseRegister(p, P_PRIME_VALUE, Q_PRIME_VALUE);
       this.denseRegister = null;
     } else {
       this.sparseRegister = null;
-      this.denseRegister = new HLLDenseRegister(p);
+      this.denseRegister = new HLLDenseRegister(p, hllBuilder.bitPacking);
+    }
+  }
+
+  public static HyperLogLogBuilder builder() {
+    return new HyperLogLogBuilder();
+  }
+
+  public static class HyperLogLogBuilder {
+    private int numRegisterIndexBits = 14;
+    private int numHashBits = 64;
+    private EncodingType encoding = EncodingType.SPARSE;
+    private boolean bitPacking = true;
+
+    public HyperLogLogBuilder() {
+    }
+
+    public HyperLogLogBuilder setNumRegisterIndexBits(int b) {
+      this.numRegisterIndexBits = b;
+      return this;
+    }
+
+    public HyperLogLogBuilder setNumHashBits(int hb) {
+      this.numHashBits = hb;
+      return this;
+    }
+
+    public HyperLogLogBuilder setEncoding(EncodingType enc) {
+      this.encoding = enc;
+      return this;
+    }
+
+    public HyperLogLogBuilder enableBitPacking(boolean b) {
+      this.bitPacking = b;
+      return this;
+    }
+
+    public HyperLogLog build() {
+      return new HyperLogLog(this);
     }
   }
 
@@ -273,7 +301,15 @@ public class HyperLogLog {
     return sparseRegister;
   }
 
-  public void setRegister(byte[] reg) {
+  public void setHLLSparseRegister(int[] reg) {
+    for (int i : reg) {
+      int key = i >>> Q_PRIME_VALUE;
+      byte value = (byte) (i & 0x3f);
+      sparseRegister.set(key, value);
+    }
+  }
+
+  public void setHLLDenseRegister(byte[] reg) {
     int i = 0;
     for (byte b : reg) {
       denseRegister.set(i, b);
@@ -329,7 +365,13 @@ public class HyperLogLog {
   }
 
   public String toStringExtended() {
-    return toString() + ", " + denseRegister.toString();
+    if (encoding.equals(EncodingType.DENSE)) {
+      return toString() + ", " + denseRegister.toExtendedString();
+    } else if (encoding.equals(EncodingType.SPARSE)) {
+      return toString() + ", " + sparseRegister.toExtendedString();
+    }
+
+    return toString();
   }
 
   public int getNumRegisterIndexBits() {
@@ -357,9 +399,16 @@ public class HyperLogLog {
     HyperLogLog other = (HyperLogLog) obj;
     long count = count();
     long otherCount = other.count();
-    return p == other.p && chosenHashBits == other.chosenHashBits
-        && encoding.equals(other.encoding) && count == otherCount
-        && denseRegister.equals(other.denseRegister);
+    boolean result = p == other.p && chosenHashBits == other.chosenHashBits
+        && encoding.equals(other.encoding) && count == otherCount;
+    if (encoding.equals(EncodingType.DENSE)) {
+      result = result && denseRegister.equals(other.getHLLDenseRegister());
+    }
+
+    if (encoding.equals(EncodingType.SPARSE)) {
+      result = result && sparseRegister.equals(other.getHLLSparseRegister());
+    }
+    return result;
   }
 
   @Override
@@ -369,7 +418,13 @@ public class HyperLogLog {
     hashcode += 31 * chosenHashBits;
     hashcode += encoding.hashCode();
     hashcode += 31 * count();
-    hashcode += 31 * denseRegister.hashCode();
+    if (encoding.equals(EncodingType.DENSE)) {
+      hashcode += 31 * denseRegister.hashCode();
+    }
+
+    if (encoding.equals(EncodingType.SPARSE)) {
+      hashcode += 31 * sparseRegister.hashCode();
+    }
     return hashcode;
   }
 }
