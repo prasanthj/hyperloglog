@@ -56,6 +56,7 @@ public class HyperLogLog {
   public HyperLogLog(EncodingType enc) {
     this(14, 128, enc);
   }
+
   /**
    * Specify the number of bits in hashcode to be used as register index. Also specify the number
    * bits for hash function. The hash function is chosen by Guava library based on the specified
@@ -88,7 +89,7 @@ public class HyperLogLog {
     this.cachedCount = -1;
     this.invalidateCount = false;
     this.encoding = enc;
-    if(enc.equals(EncodingType.SPARSE)) {
+    if (enc.equals(EncodingType.SPARSE)) {
       this.sparseRegister = new HLLSparseRegister(p, 25, 6);
       this.denseRegister = null;
     } else {
@@ -96,7 +97,7 @@ public class HyperLogLog {
       this.denseRegister = new HLLDenseRegister(p);
     }
   }
-  
+
   // see paper for alpha initialization.
   private void initializeAlpha() {
     if (chosenHashBits <= 16) {
@@ -108,7 +109,7 @@ public class HyperLogLog {
     } else {
       alphaMM = 0.7213f / (float) (1 + 1.079f / m);
     }
-    
+
     // For efficiency alpha is multiplied by m^2
     alphaMM = alphaMM * m * m;
   }
@@ -189,10 +190,17 @@ public class HyperLogLog {
   }
 
   public void add(long hashcode) {
-    if(encoding.equals(EncodingType.SPARSE)) {
-      
+    if (encoding.equals(EncodingType.SPARSE)) {
+      if (sparseRegister.add(hashcode)) {
+        invalidateCount = true;
+      }
+      if (sparseRegister.getSize() > ((m * 6) / 8)) {
+        encoding = EncodingType.DENSE;
+        denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+        invalidateCount = true;
+      }
     } else {
-      if(denseRegister.add(hashcode)) {
+      if (denseRegister.add(hashcode)) {
         invalidateCount = true;
       }
     }
@@ -204,7 +212,8 @@ public class HyperLogLog {
     // cached count
     if (invalidateCount || cachedCount < 0) {
       if (encoding.equals(EncodingType.SPARSE)) {
-
+        int mPrime = 1 << sparseRegister.getPPrime();
+        cachedCount = linearCount(mPrime, mPrime - sparseRegister.getSize());
       } else {
         double sum = denseRegister.getSumInversePow2();
         long numZeros = denseRegister.getNumZeroes();
@@ -223,7 +232,7 @@ public class HyperLogLog {
         // 2^64 values are too high to observe long range bias.
         if (cachedCount <= 2.5 * m) {
           if (numZeros != 0) {
-            cachedCount = linearCount(numZeros);
+            cachedCount = linearCount(m, numZeros);
           }
         } else if (chosenHashBits < 64 && cachedCount > (0.033333 * pow)) {
 
@@ -243,8 +252,8 @@ public class HyperLogLog {
     this.invalidateCount = true;
   }
 
-  private long linearCount(long numZeros) {
-    return (long) (Math.round(m * Math.log(m / ((double) numZeros))));
+  private long linearCount(int mVal, long numZeros) {
+    return (long) (Math.round(mVal * Math.log(mVal / ((double) numZeros))));
   }
 
   public double getStandardError() {
@@ -273,7 +282,10 @@ public class HyperLogLog {
           "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
               + toString() + " Provided: " + hll.toString());
     }
-    denseRegister.merge(hll.getHLLRegister());
+    if (denseRegister != null) {
+      denseRegister.merge(hll.getHLLRegister());
+    }
+    // TODO: implement merge for SPARSE
     invalidateCount = true;
   }
 

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Map;
 
 public class HyperLogLogUtils {
 
@@ -247,5 +248,20 @@ public class HyperLogLogUtils {
   static long readVslong(InputStream in) throws IOException {
     long result = readVulong(in);
     return (result >>> 1) ^ -(result & 1);
+  }
+
+  public static HLLDenseRegister sparseToDenseRegister(HLLSparseRegister sparseRegister) {
+    if (sparseRegister == null) {
+      return null;
+    }
+    int p = sparseRegister.getP();
+    int pMask = (1 << p) - 1;
+    HLLDenseRegister result = new HLLDenseRegister(p);
+    for (Map.Entry<Integer, Byte> entry : sparseRegister.getSparseMap().entrySet()) {
+      int key = entry.getKey();
+      int idx = key & pMask;
+      result.set(idx, entry.getValue());
+    }
+    return result;
   }
 }

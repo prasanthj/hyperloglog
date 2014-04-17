@@ -1,18 +1,13 @@
 package hyperloglog;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
-import com.google.common.collect.Lists;
-import com.google.common.primitives.Longs;
+import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
+import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 public class HLLSparseRegister {
 
-  private int[] sparseList;
+  private Int2ByteSortedMap sparseMap;
   // 1/8th the size of sparse list
-  private long[] tempList;
-  private int sparseListIdx;
+  private int[] tempList;
   private int tempListIdx;
   private final int p;
   private final int pPrime;
@@ -24,9 +19,8 @@ public class HLLSparseRegister {
   public HLLSparseRegister(int p, int pp, int qp) {
     this.p = p;
     int size = 6 * (1 << p);
-    this.sparseList = new int[size / 4];
-    this.tempList = new long[size / 32];
-    this.sparseListIdx = 0;
+    this.sparseMap = new Int2ByteAVLTreeMap();
+    this.tempList = new int[size / 32];
     this.tempListIdx = 0;
     this.pPrime = pp;
     this.qPrime = qp;
@@ -35,83 +29,44 @@ public class HLLSparseRegister {
     this.qPrimeMask = (1 << qPrime) - 1;
   }
 
-  public int add(long hashcode) {
-    if (sparseListIdx + tempListIdx > sparseList.length) {
-      // no more insertion possible
-      return -1;
-    }
+  public boolean add(long hashcode) {
+    boolean updated = false;
     if (tempListIdx < tempList.length) {
       int encodedHash = encodeHash(hashcode);
       tempList[tempListIdx++] = encodedHash;
+      updated = true;
     } else {
-      tempList = sortTempList(tempList, tempListIdx);
-      sparseList = merge(sparseList, sparseListIdx, tempList, tempListIdx);
+      updated = merge();
       tempListIdx = 0;
     }
 
-    return 0;
+    return updated;
   }
 
-  public int[] merge(int[] sl, int sIdx, long[] tl, int tIdx) {
-    int[] scratch = new int[sl.length];
-    int i = 0;
-    if (sIdx == 0) {
-      // copy from tempList directly to sparseList
-      for (i = 0; i < tIdx; i++) {
-        scratch[i] = encodeHash(tl[i]);
+  private boolean merge() {
+    boolean updated = false;
+    for (int i = 0; i < tempListIdx; i++) {
+      int encodedHash = tempList[i];
+      int key = encodedHash & pPrimeMask;
+      byte value = (byte) (encodedHash >>> pPrime);
+      byte nr = 0;
+      if (encodedHash < 0) {
+        nr = (byte) (value & qPrimeMask);
+      } else {
+        nr = (byte) (Integer.numberOfTrailingZeros(encodedHash >>> p) + 1);
       }
-      sparseListIdx = i;
-    } else {
-
-    }
-    return scratch;
-  }
-
-  public long[] sortTempList(long[] tl, int tlIdx) {
-    List<Long> outList = Lists.newArrayListWithCapacity(tlIdx);
-    for (int i = 0; i < tlIdx; i++) {
-      outList.add(tl[i]);
-    }
-
-    Collections.sort(outList, new Comparator<Long>() {
-
-      public int compare(Long o1, Long o2) {
-        long val1 = o1;
-        long val2 = o2;
-        int idx1 = (int) (val1 & pPrimeMask);
-        int idx2 = (int) (val2 & pPrimeMask);
-        if (idx1 > idx2) {
-          return 1;
-        } else if (idx2 > idx1) {
-          return -1;
-        } else {
-          if (val1 < 0 && val2 < 0) {
-            // both negative
-            val1 = (val1 >>> pPrime) & qPrimeMask;
-            val2 = (val2 >>> pPrime) & qPrimeMask;
-          } else if (val1 < 0 && val2 >= 0) {
-            // val1 is negative and it must have more trailing zeros
-            return 1;
-          } else if (val2 < 0 && val1 >= 0) {
-            // val2 is negative and it must have more trailing zeros
-            return -1;
-          } else {
-            // both positive
-            val1 = Integer.numberOfTrailingZeros((int) (val1 >>> p));
-            val2 = Integer.numberOfTrailingZeros((int) (val2 >>> p));
-          }
-
-          if (val1 > val2) {
-            return 1;
-          } else if (val2 > val1) {
-            return -1;
-          }
+      if (sparseMap.containsKey(key) && encodedHash < 0) {
+        byte containedVal = sparseMap.get(key);
+        if (nr > containedVal) {
+          sparseMap.put(key, nr);
+          updated = true;
         }
-        return 0;
+      } else {
+        sparseMap.put(key, nr);
+        updated = true;
       }
-
-    });
-    return Longs.toArray(outList);
+    }
+    return updated;
   }
 
   /**
@@ -162,6 +117,19 @@ public class HLLSparseRegister {
   }
 
   public int getSize() {
-    return sparseListIdx * 4;
+    merge();
+    return sparseMap.size();
+  }
+
+  public Int2ByteSortedMap getSparseMap() {
+    return sparseMap;
+  }
+
+  public int getP() {
+    return p;
+  }
+
+  public int getPPrime() {
+    return pPrime;
   }
 }
