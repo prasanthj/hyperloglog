@@ -1,12 +1,13 @@
 package hyperloglog;
 
+import java.util.Map;
+
 import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
 import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 public class HLLSparseRegister {
 
   private Int2ByteSortedMap sparseMap;
-  // 1/8th the size of sparse list
   private int[] tempList;
   private int tempListIdx;
   private final int p;
@@ -18,9 +19,11 @@ public class HLLSparseRegister {
 
   public HLLSparseRegister(int p, int pp, int qp) {
     this.p = p;
-    int size = 6 * (1 << p);
+    // for p = 14, 12K bytes
+    int size = (6 * (1 << p)) / 8;
     this.sparseMap = new Int2ByteAVLTreeMap();
-    this.tempList = new int[size / 32];
+    // default 1024 elements in tempList
+    this.tempList = new int[size / 12];
     this.tempListIdx = 0;
     this.pPrime = pp;
     this.qPrime = qp;
@@ -36,14 +39,13 @@ public class HLLSparseRegister {
       tempList[tempListIdx++] = encodedHash;
       updated = true;
     } else {
-      updated = merge();
-      tempListIdx = 0;
+      updated = mergeTempListToSparseMap();
     }
 
     return updated;
   }
 
-  private boolean merge() {
+  private boolean mergeTempListToSparseMap() {
     boolean updated = false;
     for (int i = 0; i < tempListIdx; i++) {
       int encodedHash = tempList[i];
@@ -55,17 +57,9 @@ public class HLLSparseRegister {
       } else {
         nr = (byte) (Integer.numberOfTrailingZeros(encodedHash >>> p) + 1);
       }
-      if (sparseMap.containsKey(key) && encodedHash < 0) {
-        byte containedVal = sparseMap.get(key);
-        if (nr > containedVal) {
-          sparseMap.put(key, nr);
-          updated = true;
-        }
-      } else {
-        sparseMap.put(key, nr);
-        updated = true;
-      }
+      updated = set(key, nr);
     }
+    tempListIdx = 0;
     return updated;
   }
 
@@ -117,8 +111,33 @@ public class HLLSparseRegister {
   }
 
   public int getSize() {
-    merge();
+    if (tempListIdx != 0) {
+      mergeTempListToSparseMap();
+    }
     return sparseMap.size();
+  }
+
+  public void merge(HLLSparseRegister hllRegister) {
+    for (Map.Entry<Integer, Byte> entry : hllRegister.getSparseMap().entrySet()) {
+      int key = entry.getKey();
+      byte value = entry.getValue();
+      set(key, value);
+    }
+  }
+
+  public boolean set(int key, byte value) {
+    boolean updated = false;
+    if (sparseMap.containsKey(key)) {
+      byte containedVal = sparseMap.get(key);
+      if (value > containedVal) {
+        sparseMap.put(key, value);
+        updated = true;
+      }
+    } else {
+      sparseMap.put(key, value);
+      updated = true;
+    }
+    return updated;
   }
 
   public Int2ByteSortedMap getSparseMap() {

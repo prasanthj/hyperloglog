@@ -43,6 +43,7 @@ public class HyperLogLog {
   private boolean invalidateCount;
 
   private EncodingType encoding;
+  private int encodingSwitchThreshold;
 
   /**
    * By default, HyperLogLog uses 14 LSB bits of hashcode as register index and a 64 bit
@@ -77,6 +78,9 @@ public class HyperLogLog {
     }
     this.p = p;
     this.m = 1 << p;
+
+    // the threshold should be less than 12K bytes for p = 14.
+    this.encodingSwitchThreshold = ((m * 6) / 8);
 
     // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
     // more than sufficient
@@ -194,9 +198,10 @@ public class HyperLogLog {
       if (sparseRegister.add(hashcode)) {
         invalidateCount = true;
       }
-      if (sparseRegister.getSize() > ((m * 6) / 8)) {
+      if (sparseRegister.getSize() > encodingSwitchThreshold) {
         encoding = EncodingType.DENSE;
         denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+        sparseRegister = null;
         invalidateCount = true;
       }
     } else {
@@ -260,12 +265,12 @@ public class HyperLogLog {
     return 1.04 / Math.sqrt(m);
   }
 
-  public HLLDenseRegister getHLLRegister() {
+  public HLLDenseRegister getHLLDenseRegister() {
     return denseRegister;
   }
 
-  public void setHLLRegister(HLLDenseRegister hllReg) {
-    this.denseRegister = hllReg;
+  public HLLSparseRegister getHLLSparseRegister() {
+    return sparseRegister;
   }
 
   public void setRegister(byte[] reg) {
@@ -282,10 +287,30 @@ public class HyperLogLog {
           "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
               + toString() + " Provided: " + hll.toString());
     }
-    if (denseRegister != null) {
-      denseRegister.merge(hll.getHLLRegister());
+
+    EncodingType otherEncoding = hll.getEncoding();
+
+    if (encoding.equals(EncodingType.SPARSE) && otherEncoding.equals(EncodingType.SPARSE)) {
+      sparseRegister.merge(hll.getHLLSparseRegister());
+      // if after merge the sparse switching threshold is exceeded then change to dense encoding
+      if (sparseRegister.getSize() > encodingSwitchThreshold) {
+        encoding = EncodingType.DENSE;
+        denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+        sparseRegister = null;
+      }
+    } else if (encoding.equals(EncodingType.DENSE) && otherEncoding.equals(EncodingType.DENSE)) {
+      denseRegister.merge(hll.getHLLDenseRegister());
+    } else if (encoding.equals(EncodingType.SPARSE) && otherEncoding.equals(EncodingType.DENSE)) {
+      denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+      denseRegister.merge(hll.getHLLDenseRegister());
+      sparseRegister = null;
+      encoding = EncodingType.DENSE;
+    } else if (encoding.equals(EncodingType.DENSE) && otherEncoding.equals(EncodingType.SPARSE)) {
+      HLLDenseRegister otherDenseRegister = HyperLogLogUtils.sparseToDenseRegister(hll
+          .getHLLSparseRegister());
+      denseRegister.merge(otherDenseRegister);
     }
-    // TODO: implement merge for SPARSE
+
     invalidateCount = true;
   }
 

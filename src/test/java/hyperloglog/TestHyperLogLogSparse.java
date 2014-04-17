@@ -19,7 +19,7 @@ public class TestHyperLogLogSparse {
 
   // 5% tolerance for estimated count
   private float longRangeTolerance = 5.0f;
-  private float shortRangeTolerance = 1.0f;
+  private float shortRangeTolerance = 0.5f;
 
   private int size;
 
