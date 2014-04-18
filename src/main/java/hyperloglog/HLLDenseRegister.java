@@ -22,14 +22,24 @@ import java.util.Arrays;
 
 public class HLLDenseRegister implements HLLRegister {
 
+  // 2^p number of bytes for register
   private byte[] register;
+
+  // max value stored in registered is cached to determine the bit width for
+  // bit packing
   private int maxRegisterValue;
+
+  // keep count of number of zeroes in registers
   private int numZeroes;
+
+  // compute and cache inverse power of 2 for register values
   private double[] invPow2Register;
+
+  // number of register bits
   private int p;
+
+  // m = 2^p
   private int m;
-  private int registerIdx;
-  private long w;
 
   public HLLDenseRegister(int p) {
     this(p, true);
@@ -48,6 +58,19 @@ public class HLLDenseRegister implements HLLRegister {
     }
   }
 
+  public boolean add(long hashcode) {
+
+    // LSB p bits
+    final int registerIdx = (int) (hashcode & (m - 1));
+
+    // MSB 64 - p bits
+    final long w = hashcode >>> p;
+
+    // longest run of trailing zeroes
+    final int lr = Long.numberOfTrailingZeros(w) + 1;
+    return set(registerIdx, (byte) lr);
+  }
+
   public boolean set(int idx, byte value) {
     boolean updated = false;
     if (idx < register.length && value > register[idx]) {
@@ -62,8 +85,10 @@ public class HLLDenseRegister implements HLLRegister {
         numZeroes--;
       }
 
+      // set register value and compute inverse pow of 2 for register value
       register[idx] = value;
       invPow2Register[idx] = Math.pow(2, -value);
+
       updated = true;
     }
     return updated;
@@ -82,11 +107,13 @@ public class HLLDenseRegister implements HLLRegister {
       HLLDenseRegister hdr = (HLLDenseRegister) hllRegister;
       byte[] inRegister = hdr.getRegister();
 
+      // merge only if the register length matches
       if (register.length != inRegister.length) {
         throw new IllegalArgumentException(
             "The size of register sets of HyperLogLogs to be merged does not match.");
       }
 
+      // compare register values and store the max register value
       for (int i = 0; i < inRegister.length; i++) {
         if (inRegister[i] > register[i]) {
           if (register[i] == 0) {
@@ -97,6 +124,7 @@ public class HLLDenseRegister implements HLLRegister {
         }
       }
 
+      // update max register value
       if (hdr.getMaxRegisterValue() > maxRegisterValue) {
         maxRegisterValue = hdr.getMaxRegisterValue();
       }
@@ -159,19 +187,6 @@ public class HLLDenseRegister implements HLLRegister {
     hashcode += 31 * maxRegisterValue;
     hashcode += Arrays.hashCode(register);
     return hashcode;
-  }
-
-  public boolean add(long hashcode) {
-
-    // LSB p bits
-    registerIdx = (int) (hashcode & (m - 1));
-
-    // MSB 64 - p bits
-    w = hashcode >>> p;
-
-    // longest run of zeroes
-    int lr = Long.numberOfTrailingZeros(w) + 1;
-    return set(registerIdx, (byte) lr);
   }
 
 }

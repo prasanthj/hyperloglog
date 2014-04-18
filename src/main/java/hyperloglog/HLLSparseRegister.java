@@ -25,23 +25,35 @@ import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 public class HLLSparseRegister implements HLLRegister {
 
+  // maintains sorted list of register indices and its corresponding values.
+  // Its easier to use primitive sorted map as opposed to int[] used in this
+  // paper
+  // http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
   private Int2ByteSortedMap sparseMap;
+
+  // for a better insertion performance values are added to temporary unsorted
+  // list which will be merged to sparse map after a threshold
   private int[] tempList;
   private int tempListIdx;
+
+  // number of register bits
   private final int p;
+
+  // new number of register bits for higher accuracy
   private final int pPrime;
+
+  // number of bits to store the number of zero runs
   private final int qPrime;
+
+  // masks for quicker extraction of p, pPrime, qPrime values
   private final int mask;
   private final int pPrimeMask;
   private final int qPrimeMask;
 
   public HLLSparseRegister(int p, int pp, int qp) {
     this.p = p;
-    // for p = 14, 12K bytes
-    int size = (6 * (1 << p)) / 8;
     this.sparseMap = new Int2ByteAVLTreeMap();
-    // default 1024 elements in tempList
-    this.tempList = new int[size / 12];
+    this.tempList = new int[HLLConstants.TEMP_LIST_DEFAULT_SIZE];
     this.tempListIdx = 0;
     this.pPrime = pp;
     this.qPrime = qp;
@@ -52,6 +64,8 @@ public class HLLSparseRegister implements HLLRegister {
 
   public boolean add(long hashcode) {
     boolean updated = false;
+
+    // fill the temp list before merging to sparse map
     if (tempListIdx < tempList.length) {
       int encodedHash = encodeHash(hashcode);
       tempList[tempListIdx++] = encodedHash;
@@ -63,6 +77,11 @@ public class HLLSparseRegister implements HLLRegister {
     return updated;
   }
 
+  /**
+   * Adds temp list to sparse map. The key for sparse map entry is the register
+   * index determined by pPrime and value is the number of trailing zeroes.
+   * @return
+   */
   private boolean mergeTempListToSparseMap() {
     boolean updated = false;
     for (int i = 0; i < tempListIdx; i++) {
@@ -70,6 +89,10 @@ public class HLLSparseRegister implements HLLRegister {
       int key = encodedHash & pPrimeMask;
       byte value = (byte) (encodedHash >>> pPrime);
       byte nr = 0;
+      // if MSB is set to 1 then next qPrime MSB bits contains the value of
+      // number of zeroes.
+      // if MSB is set to 0 then number of zeroes is contained within pPrime - p
+      // bits.
       if (encodedHash < 0) {
         nr = (byte) (value & qPrimeMask);
       } else {
@@ -77,6 +100,8 @@ public class HLLSparseRegister implements HLLRegister {
       }
       updated = set(key, nr);
     }
+
+    // reset temp list index
     tempListIdx = 0;
     return updated;
   }
@@ -129,6 +154,8 @@ public class HLLSparseRegister implements HLLRegister {
   }
 
   public int getSize() {
+
+    // merge temp list before getting the size of sparse map
     if (tempListIdx != 0) {
       mergeTempListToSparseMap();
     }
@@ -138,6 +165,8 @@ public class HLLSparseRegister implements HLLRegister {
   public void merge(HLLRegister hllRegister) {
     if (hllRegister instanceof HLLSparseRegister) {
       HLLSparseRegister hsr = (HLLSparseRegister) hllRegister;
+
+      // retain only the largest value for a register index
       for (Map.Entry<Integer, Byte> entry : hsr.getSparseMap().entrySet()) {
         int key = entry.getKey();
         byte value = entry.getValue();
@@ -150,6 +179,8 @@ public class HLLSparseRegister implements HLLRegister {
 
   public boolean set(int key, byte value) {
     boolean updated = false;
+
+    // retain only the largest value for a register index
     if (sparseMap.containsKey(key)) {
       byte containedVal = sparseMap.get(key);
       if (value > containedVal) {

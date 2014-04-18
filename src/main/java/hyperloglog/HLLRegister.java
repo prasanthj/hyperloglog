@@ -20,9 +20,30 @@ package hyperloglog;
 
 public interface HLLRegister {
 
-  public boolean add(long value);
+  /**
+   * Specify a hashcode to add to hyperloglog register.
+   * @param hashcode
+   *          - hashcode to add
+   * @return true if register value is updated else false
+   */
+  public boolean add(long hashcode);
 
+  /**
+   * Instead of specifying hashcode, this interface can be used to directly specify the register
+   * index and register value. This interface is useful when reconstructing hyperloglog from a
+   * serialized representation where its not possible to regenerate the hashcode.
+   * @param idx
+   *          - register index
+   * @param value
+   *          - register value
+   * @return true if register value is updated else false
+   */
   public boolean set(int idx, byte value);
 
+  /**
+   * Merge hyperloglog registers of the same type (SPARSE or DENSE register)
+   * @param reg
+   *          - register to be merged
+   */
   public void merge(HLLRegister reg);
 }

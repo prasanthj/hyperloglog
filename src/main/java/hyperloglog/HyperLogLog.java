@@ -28,6 +28,32 @@ import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
+/**
+ * <pre>
+ * This is an implementation of the following variants of hyperloglog (HLL)
+ * algorithm 
+ * Original  - Original HLL algorithm from Flajolet et. al from
+ *             http://algo.inria.fr/flajolet/Publications/FlFuGaMe07.pdf
+ * HLLNoBias - Google's implementation of bias correction based on lookup table
+ *             http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ * HLL++     - Google's implementation of HLL++ algorithm that uses SPARSE registers
+ *             http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ *             
+ * Following are the constructor parameters that determines which algorithm is
+ * used
+ * <b>numRegisterIndexBits</b> - number of LSB hashcode bits to be used as register index.
+ *                        <i>Default is 14</i>. min = 4 and max = 16
+ * <b>numHashBits</b> - number of bits for hashcode. <i>Default is 64</i>. min = 32 and max = 128
+ * <b>encoding</b> - Type of encoding to use (SPARSE or DENSE). The algorithm automatically
+ *            switches to DENSE beyond a threshold. <i>Default: SPARSE</i>
+ * <b>enableBitPacking</b> - To enable bit packing or not. Bit packing improves compression
+ *                    at the cost of more CPU cycles. <i>Default: true</i>
+ * <b>noBias</b> - Use Google's bias table lookup for short range bias correction.
+ *          Enabling this will highly improve the estimation accuracy for short
+ *          range values. <i>Default: true</i>
+ * 
+ * </pre>
+ */
 public class HyperLogLog {
 
   public static enum EncodingType {
@@ -39,16 +65,16 @@ public class HyperLogLog {
 
   // number of registers - 2^p
   private final int m;
+
+  // refer paper
   private float alphaMM;
+
+  // number of bits of hash function suggested by Guava library
   private final int chosenHashBits;
+
+  // enable/disable bias correction using table lookup
   private final boolean noBias;
 
-  // 8-bit registers.
-  // TODO: This can further be space optimized using 6 bit registers as longest
-  // run for long value (hashcode) can be maximum of 64.
-  // Using p = 14,
-  // space required for 8-bit registers = (2 ^ 14) * 8 = 16KB
-  // space required for 8-bit registers = (2 ^ 14) * 6 = 12KB
   private HLLDenseRegister denseRegister;
   private HLLSparseRegister sparseRegister;
 
@@ -57,12 +83,14 @@ public class HyperLogLog {
   private final HashFunction hf;
   private HashCode hc;
 
-  // counts are cached to avoid complex computation. If register value is updated
-  // the count will be computed again.
+  // counts are cached to avoid repeated complex computation. If register value
+  // is updated the count will be computed again.
   private long cachedCount;
   private boolean invalidateCount;
 
   private EncodingType encoding;
+
+  // threshold to switch from SPARSE to DENSE encoding
   private int encodingSwitchThreshold;
 
   private HyperLogLog(HyperLogLogBuilder hllBuilder) {
@@ -76,15 +104,16 @@ public class HyperLogLog {
     this.noBias = hllBuilder.noBias;
 
     // the threshold should be less than 12K bytes for p = 14.
-    // The reason to divide by 5 is, in sparse mode after serialization the entries
-    // in sparse map are compressed, and delta encoded as varints. The worst case
-    // size of varints are 5 bytes. Hence, 12K/5 ~= 2400 entries in sparse map.
+    // The reason to divide by 5 is, in sparse mode after serialization the
+    // entriesin sparse map are compressed, and delta encoded as varints. The
+    // worst case size of varints are 5 bytes. Hence, 12K/5 ~= 2400 entries in
+    // sparse map.
     if (hllBuilder.bitPacking) {
       this.encodingSwitchThreshold = ((m * 6) / 8) / 5;
     } else {
       // if bitpacking is disabled, all register values takes 8 bits and hence
-      // we can be more flexible with the threshold. For p=14, 16K/5 = 3200 entries
-      // in sparse map can be allowed.
+      // we can be more flexible with the threshold. For p=14, 16K/5 = 3200
+      // entries in sparse map can be allowed.
       this.encodingSwitchThreshold = m / 3;
     }
 
@@ -250,9 +279,12 @@ public class HyperLogLog {
       if (sparseRegister.add(hashcode)) {
         invalidateCount = true;
       }
+
+      // if size of sparse map excess the threshold convert the sparse map to
+      // dense register and switch to DENSE encoding
       if (sparseRegister.getSize() > encodingSwitchThreshold) {
         encoding = EncodingType.DENSE;
-        denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+        denseRegister = sparseToDenseRegister(sparseRegister);
         sparseRegister = null;
         invalidateCount = true;
       }
@@ -269,9 +301,15 @@ public class HyperLogLog {
     // cached count
     if (invalidateCount || cachedCount < 0) {
       if (encoding.equals(EncodingType.SPARSE)) {
+
+        // if encoding is still SPARSE use linear counting with increase
+        // accuracy (as we use pPrime bits for register index)
         int mPrime = 1 << sparseRegister.getPPrime();
         cachedCount = linearCount(mPrime, mPrime - sparseRegister.getSize());
       } else {
+
+        // for DENSE encoding, use bias table lookup for HLLNoBias algorithm
+        // else fallback to HLLOriginal algorithm
         double sum = denseRegister.getSumInversePow2();
         long numZeros = denseRegister.getNumZeroes();
 
@@ -294,13 +332,16 @@ public class HyperLogLog {
           }
         } else {
           // HLL algorithm shows stronger bias for values in (2.5 * m) range.
-          // To compensate for this short range bias, linear counting is used for
-          // values before this short range. The original paper also says similar
-          // bias is seen for long range values due to hash collisions in range >1/30*(2^32)
-          // For the default case, we do not have to worry about this long range bias
-          // as the paper used 32-bit hashing and we use 64-bit hashing as default.
-          // 2^64 values are too high to observe long range bias.
+          // To compensate for this short range bias, linear counting is used
+          // for values before this short range. The original paper also says
+          // similar bias is seen for long range values due to hash collisions
+          // in range >1/30*(2^32). For the default case, we do not have to
+          // worry about this long range bias as the paper used 32-bit hashing
+          // and we use 64-bit hashing as default. 2^64 values are too high to
+          // observe long range bias (hash collisions).
           if (cachedCount <= 2.5 * m) {
+
+            // for short range use linear counting
             if (numZeros != 0) {
               cachedCount = linearCount(m, numZeros);
             }
@@ -315,6 +356,7 @@ public class HyperLogLog {
       }
       invalidateCount = false;
     }
+
     return cachedCount;
   }
 
@@ -322,14 +364,24 @@ public class HyperLogLog {
     return (long) (HLLConstants.thresholdData[p - 4] + 0.5);
   }
 
+  /**
+   * Estimate bias from lookup table
+   * @param count
+   *          - cardinality before bias correction
+   * @return cardinality after bias correction
+   */
   private long estimateBias(long count) {
     double[] rawEstForP = HLLConstants.rawEstimateData[p - 4];
+
+    // compute distance and store it in sorted map
     Double2IntSortedMap estIndexMap = new Double2IntAVLTreeMap();
     double distance = 0;
     for (int i = 0; i < rawEstForP.length; i++) {
       distance = Math.pow(count - rawEstForP[i], 2);
       estIndexMap.put(distance, i);
     }
+
+    // take top-k closest neighbors and compute the bias corrected cardinality
     long result = 0;
     double[] biasForP = HLLConstants.biasData[p - 4];
     double biasSum = 0;
@@ -341,6 +393,8 @@ public class HyperLogLog {
         break;
       }
     }
+
+    // 0.5 added for rounding off
     result = (long) ((biasSum / HLLConstants.K_NEAREST_NEIGHBOR) + 0.5);
     return result;
   }
@@ -354,6 +408,7 @@ public class HyperLogLog {
     return (long) (Math.round(mVal * Math.log(mVal / ((double) numZeros))));
   }
 
+  // refer paper
   public double getStandardError() {
     return 1.04 / Math.sqrt(m);
   }
@@ -366,6 +421,11 @@ public class HyperLogLog {
     return sparseRegister;
   }
 
+  /**
+   * Reconstruct sparse map from serialized integer list
+   * @param reg
+   *          - uncompressed and delta decoded integer list
+   */
   public void setHLLSparseRegister(int[] reg) {
     for (int i : reg) {
       int key = i >>> HLLConstants.Q_PRIME_VALUE;
@@ -374,6 +434,11 @@ public class HyperLogLog {
     }
   }
 
+  /**
+   * Reconstruct dense registers from byte array
+   * @param reg
+   *          - unpacked byte array
+   */
   public void setHLLDenseRegister(byte[] reg) {
     int i = 0;
     for (byte b : reg) {
@@ -382,6 +447,13 @@ public class HyperLogLog {
     }
   }
 
+  /**
+   * Merge the specified hyperloglog to the current one. Encoding switches
+   * automatically after merge if the encoding switch threshold is exceeded.
+   * @param hll
+   *          - hyperloglog to be merged
+   * @throws IllegalArgumentException
+   */
   public void merge(HyperLogLog hll) {
     if (p != hll.p || chosenHashBits != hll.chosenHashBits) {
       throw new IllegalArgumentException(
@@ -393,26 +465,47 @@ public class HyperLogLog {
 
     if (encoding.equals(EncodingType.SPARSE) && otherEncoding.equals(EncodingType.SPARSE)) {
       sparseRegister.merge(hll.getHLLSparseRegister());
-      // if after merge the sparse switching threshold is exceeded then change to dense encoding
+      // if after merge the sparse switching threshold is exceeded then change
+      // to dense encoding
       if (sparseRegister.getSize() > encodingSwitchThreshold) {
         encoding = EncodingType.DENSE;
-        denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+        denseRegister = sparseToDenseRegister(sparseRegister);
         sparseRegister = null;
       }
     } else if (encoding.equals(EncodingType.DENSE) && otherEncoding.equals(EncodingType.DENSE)) {
       denseRegister.merge(hll.getHLLDenseRegister());
     } else if (encoding.equals(EncodingType.SPARSE) && otherEncoding.equals(EncodingType.DENSE)) {
-      denseRegister = HyperLogLogUtils.sparseToDenseRegister(sparseRegister);
+      denseRegister = sparseToDenseRegister(sparseRegister);
       denseRegister.merge(hll.getHLLDenseRegister());
       sparseRegister = null;
       encoding = EncodingType.DENSE;
     } else if (encoding.equals(EncodingType.DENSE) && otherEncoding.equals(EncodingType.SPARSE)) {
-      HLLDenseRegister otherDenseRegister = HyperLogLogUtils.sparseToDenseRegister(hll
-          .getHLLSparseRegister());
+      HLLDenseRegister otherDenseRegister = sparseToDenseRegister(hll.getHLLSparseRegister());
       denseRegister.merge(otherDenseRegister);
     }
 
     invalidateCount = true;
+  }
+
+  /**
+   * Converts sparse to dense hll register
+   * @param sparseRegister
+   *          - sparse register to be converted
+   * @return converted dense register
+   */
+  private HLLDenseRegister sparseToDenseRegister(HLLSparseRegister sparseRegister) {
+    if (sparseRegister == null) {
+      return null;
+    }
+    int p = sparseRegister.getP();
+    int pMask = (1 << p) - 1;
+    HLLDenseRegister result = new HLLDenseRegister(p);
+    for (Map.Entry<Integer, Byte> entry : sparseRegister.getSparseMap().entrySet()) {
+      int key = entry.getKey();
+      int idx = key & pMask;
+      result.set(idx, entry.getValue());
+    }
+    return result;
   }
 
   @Override
