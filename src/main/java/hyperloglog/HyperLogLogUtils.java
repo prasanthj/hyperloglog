@@ -196,7 +196,7 @@ public class HyperLogLogUtils {
             .setEncoding(EncodingType.DENSE).enableBitPacking(false).build();
       } else {
         result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
-            .setEncoding(EncodingType.DENSE).build();
+            .setEncoding(EncodingType.DENSE).enableBitPacking(true).build();
       }
       int m = 1 << p;
       byte[] register = unpackHLLRegister(in, m, bitSize);

@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+HLL_HOME="$PWD"
+HLL_CLASSPATH="$HLL_HOME/target/*:$HLL_HOME/target/lib/*:$HLL_HOME/target/classes"
+
+java -cp $HLL_CLASSPATH hyperloglog.tools.HyperLogLogCLI "$@"

@@ -75,6 +75,9 @@ public class HyperLogLog {
   // enable/disable bias correction using table lookup
   private final boolean noBias;
 
+  // enable/disable bitpacking
+  private final boolean bitPacking;
+
   private HLLDenseRegister denseRegister;
   private HLLSparseRegister sparseRegister;
 
@@ -102,13 +105,14 @@ public class HyperLogLog {
     this.p = hllBuilder.numRegisterIndexBits;
     this.m = 1 << p;
     this.noBias = hllBuilder.noBias;
+    this.bitPacking = hllBuilder.bitPacking;
 
     // the threshold should be less than 12K bytes for p = 14.
     // The reason to divide by 5 is, in sparse mode after serialization the
     // entriesin sparse map are compressed, and delta encoded as varints. The
     // worst case size of varints are 5 bytes. Hence, 12K/5 ~= 2400 entries in
     // sparse map.
-    if (hllBuilder.bitPacking) {
+    if (bitPacking) {
       this.encodingSwitchThreshold = ((m * 6) / 8) / 5;
     } else {
       // if bitpacking is disabled, all register values takes 8 bits and hence
@@ -135,7 +139,7 @@ public class HyperLogLog {
       this.denseRegister = null;
     } else {
       this.sparseRegister = null;
-      this.denseRegister = new HLLDenseRegister(p, hllBuilder.bitPacking);
+      this.denseRegister = new HLLDenseRegister(p, bitPacking);
     }
   }
 
@@ -499,7 +503,7 @@ public class HyperLogLog {
     }
     int p = sparseRegister.getP();
     int pMask = (1 << p) - 1;
-    HLLDenseRegister result = new HLLDenseRegister(p);
+    HLLDenseRegister result = new HLLDenseRegister(p, bitPacking);
     for (Map.Entry<Integer, Byte> entry : sparseRegister.getSparseMap().entrySet()) {
       int key = entry.getKey();
       int idx = key & pMask;
