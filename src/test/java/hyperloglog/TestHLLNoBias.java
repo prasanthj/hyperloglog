@@ -34,7 +34,8 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(value = Parameterized.class)
 public class TestHLLNoBias {
 
-  // 1% tolerance for long range bias (when no bias enabled) and 5% when (no bias is disabled) and
+  // 1% tolerance for long range bias (when no bias enabled) and 5% when (no
+  // bias is disabled) and
   // 0.5% for short range bias
   private float noBiaslongRangeTolerance = 1.0f;
   private float biasedlongRangeTolerance = 5.0f;

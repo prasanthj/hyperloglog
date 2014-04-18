@@ -29,9 +29,10 @@ public interface HLLRegister {
   public boolean add(long hashcode);
 
   /**
-   * Instead of specifying hashcode, this interface can be used to directly specify the register
-   * index and register value. This interface is useful when reconstructing hyperloglog from a
-   * serialized representation where its not possible to regenerate the hashcode.
+   * Instead of specifying hashcode, this interface can be used to directly
+   * specify the register index and register value. This interface is useful
+   * when reconstructing hyperloglog from a serialized representation where its
+   * not possible to regenerate the hashcode.
    * @param idx
    *          - register index
    * @param value
