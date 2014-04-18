@@ -1,19 +1,17 @@
 package hyperloglog;
 
+import it.unimi.dsi.fastutil.doubles.Double2IntAVLTreeMap;
+import it.unimi.dsi.fastutil.doubles.Double2IntArrayMap;
+import it.unimi.dsi.fastutil.doubles.Double2IntSortedMap;
+
 import java.nio.charset.Charset;
+import java.util.Map;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
 public class HyperLogLog {
-
-  public static final int MIN_P_VALUE = 4;
-  public static final int MAX_P_VALUE = 16;
-
-  // constants for SPARSE encoding
-  public static final int P_PRIME_VALUE = 25;
-  public static final int Q_PRIME_VALUE = 6;
 
   public static enum EncodingType {
     SPARSE, DENSE
@@ -26,6 +24,7 @@ public class HyperLogLog {
   private final int m;
   private float alphaMM;
   private final int chosenHashBits;
+  private final boolean noBias;
 
   // 8-bit registers.
   // TODO: This can further be space optimized using 6 bit registers as longest
@@ -50,13 +49,14 @@ public class HyperLogLog {
   private int encodingSwitchThreshold;
 
   private HyperLogLog(HyperLogLogBuilder hllBuilder) {
-    if (hllBuilder.numRegisterIndexBits < MIN_P_VALUE
-        || hllBuilder.numRegisterIndexBits > MAX_P_VALUE) {
-      throw new IllegalArgumentException("p value should be between " + MIN_P_VALUE + " to "
-          + MAX_P_VALUE);
+    if (hllBuilder.numRegisterIndexBits < HLLConstants.MIN_P_VALUE
+        || hllBuilder.numRegisterIndexBits > HLLConstants.MAX_P_VALUE) {
+      throw new IllegalArgumentException("p value should be between " + HLLConstants.MIN_P_VALUE
+          + " to " + HLLConstants.MAX_P_VALUE);
     }
     this.p = hllBuilder.numRegisterIndexBits;
     this.m = 1 << p;
+    this.noBias = hllBuilder.noBias;
 
     // the threshold should be less than 12K bytes for p = 14.
     // The reason to divide by 5 is, in sparse mode after serialization the entries
@@ -84,7 +84,8 @@ public class HyperLogLog {
     this.invalidateCount = false;
     this.encoding = hllBuilder.encoding;
     if (encoding.equals(EncodingType.SPARSE)) {
-      this.sparseRegister = new HLLSparseRegister(p, P_PRIME_VALUE, Q_PRIME_VALUE);
+      this.sparseRegister = new HLLSparseRegister(p, HLLConstants.P_PRIME_VALUE,
+          HLLConstants.Q_PRIME_VALUE);
       this.denseRegister = null;
     } else {
       this.sparseRegister = null;
@@ -101,6 +102,7 @@ public class HyperLogLog {
     private int numHashBits = 64;
     private EncodingType encoding = EncodingType.SPARSE;
     private boolean bitPacking = true;
+    private boolean noBias = true;
 
     public HyperLogLogBuilder() {
     }
@@ -122,6 +124,11 @@ public class HyperLogLog {
 
     public HyperLogLogBuilder enableBitPacking(boolean b) {
       this.bitPacking = b;
+      return this;
+    }
+
+    public HyperLogLogBuilder enableNoBias(boolean nb) {
+      this.noBias = nb;
       return this;
     }
 
@@ -256,28 +263,69 @@ public class HyperLogLog {
         cachedCount = (long) (alphaMM * (1.0 / sum));
         long pow = (long) Math.pow(2, chosenHashBits);
 
-        // HLL algorithm shows stronger bias for values in (2.5 * m) range.
-        // To compensate for this short range bias, linear counting is used for
-        // values before this short range. The original paper also says similar
-        // bias is seen for long range values due to hash collisions in range >1/30*(2^32)
-        // For the default case, we do not have to worry about this long range bias
-        // as the paper used 32-bit hashing and we use 64-bit hashing as default.
-        // 2^64 values are too high to observe long range bias.
-        if (cachedCount <= 2.5 * m) {
+        // when bias correction is enabled
+        if (noBias) {
+          cachedCount = cachedCount <= 5 * m ? (cachedCount - estimateBias(cachedCount))
+              : cachedCount;
+          long h = cachedCount;
           if (numZeros != 0) {
-            cachedCount = linearCount(m, numZeros);
+            h = linearCount(m, numZeros);
           }
-        } else if (chosenHashBits < 64 && cachedCount > (0.033333 * pow)) {
 
-          // long range bias for 32-bit hashcodes
-          if (cachedCount > (1 / 30) * pow) {
-            cachedCount = (long) (-pow * Math.log(1.0 - (double) cachedCount / (double) pow));
+          if (h < getThreshold()) {
+            cachedCount = h;
+          }
+        } else {
+          // HLL algorithm shows stronger bias for values in (2.5 * m) range.
+          // To compensate for this short range bias, linear counting is used for
+          // values before this short range. The original paper also says similar
+          // bias is seen for long range values due to hash collisions in range >1/30*(2^32)
+          // For the default case, we do not have to worry about this long range bias
+          // as the paper used 32-bit hashing and we use 64-bit hashing as default.
+          // 2^64 values are too high to observe long range bias.
+          if (cachedCount <= 2.5 * m) {
+            if (numZeros != 0) {
+              cachedCount = linearCount(m, numZeros);
+            }
+          } else if (chosenHashBits < 64 && cachedCount > (0.033333 * pow)) {
+
+            // long range bias for 32-bit hashcodes
+            if (cachedCount > (1 / 30) * pow) {
+              cachedCount = (long) (-pow * Math.log(1.0 - (double) cachedCount / (double) pow));
+            }
           }
         }
       }
       invalidateCount = false;
     }
     return cachedCount;
+  }
+
+  private long getThreshold() {
+    return (long) (HLLConstants.thresholdData[p - 4] + 0.5);
+  }
+
+  private long estimateBias(long count) {
+    double[] rawEstForP = HLLConstants.rawEstimateData[p - 4];
+    Double2IntSortedMap estIndexMap = new Double2IntAVLTreeMap();
+    double distance = 0;
+    for (int i = 0; i < rawEstForP.length; i++) {
+      distance = Math.pow(count - rawEstForP[i], 2);
+      estIndexMap.put(distance, i);
+    }
+    long result = 0;
+    double[] biasForP = HLLConstants.biasData[p - 4];
+    double biasSum = 0;
+    int kNeighbors = HLLConstants.K_NEAREST_NEIGHBOR;
+    for (Map.Entry<Double, Integer> entry : estIndexMap.entrySet()) {
+      biasSum += biasForP[entry.getValue()];
+      kNeighbors--;
+      if (kNeighbors <= 0) {
+        break;
+      }
+    }
+    result = (long) ((biasSum / HLLConstants.K_NEAREST_NEIGHBOR) + 0.5);
+    return result;
   }
 
   public void setCount(long count) {
@@ -303,7 +351,7 @@ public class HyperLogLog {
 
   public void setHLLSparseRegister(int[] reg) {
     for (int i : reg) {
-      int key = i >>> Q_PRIME_VALUE;
+      int key = i >>> HLLConstants.Q_PRIME_VALUE;
       byte value = (byte) (i & 0x3f);
       sparseRegister.set(key, value);
     }

@@ -145,10 +145,10 @@ public class HyperLogLogUtils {
       int prev = 0;
       for (Map.Entry<Integer, Byte> entry : sparseMap.entrySet()) {
         if (prev == 0) {
-          prev = (entry.getKey() << HyperLogLog.Q_PRIME_VALUE) | entry.getValue();
+          prev = (entry.getKey() << HLLConstants.Q_PRIME_VALUE) | entry.getValue();
           writeVulong(out, prev);
         } else {
-          int curr = (entry.getKey() << HyperLogLog.Q_PRIME_VALUE) | entry.getValue();
+          int curr = (entry.getKey() << HLLConstants.Q_PRIME_VALUE) | entry.getValue();
           int delta = curr - prev;
           writeVulong(out, delta);
           prev = curr;
