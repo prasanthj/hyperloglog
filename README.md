@@ -122,7 +122,7 @@ References
 
 [2] http://metamarkets.com/2012/fast-cheap-and-98-right-cardinality-estimation-for-big-data/
 
-[3] http://metamarkets.com/2012/fast-cheap-and-98-right-cardinality-estimation-for-big-data/
+[3] http://research.neustar.biz/tag/flajolet-martin-sketch/
 
 [4] http://research.neustar.biz/2013/01/24/hyperloglog-googles-take-on-engineering-hll/
 
