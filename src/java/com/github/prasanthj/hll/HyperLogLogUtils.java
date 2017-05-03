@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
-import hyperloglog.HyperLogLog.EncodingType;
+import com.github.prasanthj.hll.HyperLogLog.EncodingType;
 import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 import java.io.EOFException;

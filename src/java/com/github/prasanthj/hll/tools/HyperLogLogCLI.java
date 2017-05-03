@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package hyperloglog.tools;
+package com.github.prasanthj.hll.tools;
 
-import hyperloglog.HyperLogLog;
-import hyperloglog.HyperLogLog.EncodingType;
-import hyperloglog.HyperLogLogUtils;
+import com.github.prasanthj.hll.HyperLogLog;
+import com.github.prasanthj.hll.HyperLogLogUtils;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -52,7 +51,7 @@ public class HyperLogLogCLI {
     CommandLine cli = null;
     long n = 0;
     long seed = 123;
-    EncodingType enc = EncodingType.SPARSE;
+    HyperLogLog.EncodingType enc = HyperLogLog.EncodingType.SPARSE;
     int p = 14;
     int hb = 64;
     boolean bitPack = true;
@@ -82,8 +81,8 @@ public class HyperLogLogCLI {
 
       if (cli.hasOption('e')) {
         String value = cli.getOptionValue('e');
-        if (value.equals(EncodingType.DENSE.name())) {
-          enc = EncodingType.DENSE;
+        if (value.equals(HyperLogLog.EncodingType.DENSE.name())) {
+          enc = HyperLogLog.EncodingType.DENSE;
         }
       }
 

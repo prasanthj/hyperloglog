@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
 import it.unimi.dsi.fastutil.doubles.Double2IntAVLTreeMap;
 import it.unimi.dsi.fastutil.doubles.Double2IntSortedMap;

@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
 import static org.junit.Assert.assertEquals;
-import hyperloglog.HyperLogLog.EncodingType;
+import com.github.prasanthj.hll.HyperLogLog.EncodingType;
 
 import org.junit.Test;
 

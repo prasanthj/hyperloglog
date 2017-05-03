@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
 import static org.junit.Assert.assertEquals;
-import hyperloglog.HyperLogLog.EncodingType;
+import com.github.prasanthj.hll.HyperLogLog.EncodingType;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -46,7 +46,7 @@ public class TestHLLSerialization {
 
   private int size;
   private File testFile;
-  private static final String pathPrefix = "src/test/resources/";
+  private static final String pathPrefix = ".";
   private static final int SEED = 100;
   // 5% tolerance for long range bias and 1% for short range bias
   private float longRangeTolerance = 5.0f;
@@ -84,9 +84,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     FileInputStream fis = new FileInputStream(testFile);
     DataInputStream in = new DataInputStream(fis);
     HyperLogLog deserializedHLL = HyperLogLogUtils.deserializeHLL(in);
@@ -110,9 +107,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
     double delta = threshold * hashset.size() / 100;
     FileInputStream fis = new FileInputStream(testFile);
@@ -138,9 +132,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     FileInputStream fis = new FileInputStream(testFile);
     DataInputStream in = new DataInputStream(fis);
     HyperLogLog deserializedHLL = HyperLogLogUtils.deserializeHLL(in);
@@ -165,9 +156,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
     double delta = threshold * hashset.size() / 100;
     FileInputStream fis = new FileInputStream(testFile);
@@ -192,9 +180,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     FileInputStream fis = new FileInputStream(testFile);
     DataInputStream in = new DataInputStream(fis);
     HyperLogLog deserializedHLL = HyperLogLogUtils.deserializeHLL(in);
@@ -218,9 +203,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
     double delta = threshold * hashset.size() / 100;
     FileInputStream fis = new FileInputStream(testFile);
@@ -246,9 +228,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     FileInputStream fis = new FileInputStream(testFile);
     DataInputStream in = new DataInputStream(fis);
     HyperLogLog deserializedHLL = HyperLogLogUtils.deserializeHLL(in);
@@ -273,9 +252,6 @@ public class TestHLLSerialization {
     FileOutputStream fos = new FileOutputStream(testFile);
     DataOutputStream out = new DataOutputStream(fos);
     HyperLogLogUtils.serializeHLL(out, hll);
-    System.out.println(testCaseName.getMethodName() + "_" + size + " - serializedSize: "
-        + out.size() + " bytes");
-
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
     double delta = threshold * hashset.size() / 100;
     FileInputStream fis = new FileInputStream(testFile);

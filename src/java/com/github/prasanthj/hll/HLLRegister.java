@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
 public interface HLLRegister {
 

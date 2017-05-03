@@ -16,10 +16,9 @@
  * limitations under the License.
  */
 
-package hyperloglog;
+package com.github.prasanthj.hll;
 
 import static org.junit.Assert.assertEquals;
-import hyperloglog.HyperLogLog.EncodingType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,15 +32,15 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(value = Parameterized.class)
-public class TestHyperLogLogDense {
+public class TestHyperLogLogSparse {
 
-  // 5% tolerance for long range bias and 1% for short range bias
+  // 5% tolerance for long range bias and 0.5% for short range bias
   private float longRangeTolerance = 5.0f;
-  private float shortRangeTolerance = 1.0f;
+  private float shortRangeTolerance = 0.5f;
 
   private int size;
 
-  public TestHyperLogLogDense(int n) {
+  public TestHyperLogLogSparse(int n) {
     this.size = n;
   }
 
@@ -55,7 +54,7 @@ public class TestHyperLogLogDense {
   @Test
   public void testHLLAdd() {
     Random rand = new Random(size);
-    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll = HyperLogLog.builder().build();
     int size = 100;
     for (int i = 0; i < size; i++) {
       hll.addLong(rand.nextLong());
@@ -68,7 +67,7 @@ public class TestHyperLogLogDense {
   @Test
   public void testHLLAddHalfDistinct() {
     Random rand = new Random(size);
-    HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
+    HyperLogLog hll = HyperLogLog.builder().build();
     int unique = size / 2;
     Set<Long> hashset = new HashSet<Long>();
     for (int i = 0; i < size; i++) {
@@ -80,5 +79,4 @@ public class TestHyperLogLogDense {
     double delta = threshold * hashset.size() / 100;
     assertEquals((double) hashset.size(), (double) hll.count(), delta);
   }
-
 }
