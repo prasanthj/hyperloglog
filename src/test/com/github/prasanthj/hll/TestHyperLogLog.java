@@ -1,11 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Copyright 2017 Prasanth Jayachandran
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -26,14 +24,14 @@ import org.junit.Test;
 public class TestHyperLogLog {
   // 5% tolerance for estimated count
   private float longRangeTolerance = 5.0f;
-  private float shortRangeTolerance = 3.0f;
+  private float shortRangeTolerance = 2.0f;
 
   @Test(expected = IllegalArgumentException.class)
   public void testHLLDenseMerge() {
     HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
     HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
     HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
-    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16)
         .setEncoding(EncodingType.DENSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
@@ -70,7 +68,7 @@ public class TestHyperLogLog {
     HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
-    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16)
         .setEncoding(EncodingType.SPARSE).build();
     int size = 500;
     for (int i = 0; i < size; i++) {
@@ -107,7 +105,7 @@ public class TestHyperLogLog {
     HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
-    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16)
         .setEncoding(EncodingType.DENSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
@@ -144,7 +142,7 @@ public class TestHyperLogLog {
     HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
     HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.DENSE).build();
     HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
-    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16)
         .setEncoding(EncodingType.SPARSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {
@@ -181,7 +179,7 @@ public class TestHyperLogLog {
     HyperLogLog hll = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll2 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
     HyperLogLog hll3 = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).build();
-    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16).setNumHashBits(64)
+    HyperLogLog hll4 = HyperLogLog.builder().setNumRegisterIndexBits(16)
         .setEncoding(EncodingType.SPARSE).build();
     int size = 1000;
     for (int i = 0; i < size; i++) {

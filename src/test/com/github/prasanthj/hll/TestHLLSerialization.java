@@ -48,9 +48,9 @@ public class TestHLLSerialization {
   private File testFile;
   private static final String pathPrefix = ".";
   private static final int SEED = 100;
-  // 5% tolerance for long range bias and 1% for short range bias
+  // 5% tolerance for long range bias and 2.5% for short range bias
   private float longRangeTolerance = 5.0f;
-  private float shortRangeTolerance = 1.0f;
+  private float shortRangeTolerance = 2.5f;
 
   public TestHLLSerialization(int n) {
     this.size = n;

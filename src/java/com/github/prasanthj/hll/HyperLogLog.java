@@ -1,11 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Copyright 2017 Prasanth Jayachandran
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,12 +19,9 @@ package com.github.prasanthj.hll;
 import it.unimi.dsi.fastutil.doubles.Double2IntAVLTreeMap;
 import it.unimi.dsi.fastutil.doubles.Double2IntSortedMap;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Map;
-
-import com.google.common.hash.HashCode;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 
 /**
  * <pre>
@@ -55,8 +50,14 @@ import com.google.common.hash.Hashing;
  * </pre>
  */
 public class HyperLogLog {
+  private final static int DEFAULT_HASH_BITS = 64;
+  private final static long HASH64_ZERO = Murmur3.hash64(new byte[] {0});
+  private final static long HASH64_ONE = Murmur3.hash64(new byte[] {1});
+  private final static ByteBuffer SHORT_BUFFER = ByteBuffer.allocate(Short.BYTES);
+  private final static ByteBuffer INT_BUFFER = ByteBuffer.allocate(Integer.BYTES);
+  private final static ByteBuffer LONG_BUFFER = ByteBuffer.allocate(Long.BYTES);
 
-  public static enum EncodingType {
+  public enum EncodingType {
     SPARSE, DENSE
   }
 
@@ -69,22 +70,17 @@ public class HyperLogLog {
   // refer paper
   private float alphaMM;
 
-  // number of bits of hash function suggested by Guava library
-  private final int chosenHashBits;
-
   // enable/disable bias correction using table lookup
   private final boolean noBias;
 
   // enable/disable bitpacking
   private final boolean bitPacking;
 
+  // Not making it configurable for perf reasons (avoid checks)
+  private final int chosenHashBits = DEFAULT_HASH_BITS;
+
   private HLLDenseRegister denseRegister;
   private HLLSparseRegister sparseRegister;
-
-  // Good fast hash function suggested by Guava hashing for the specified bits
-  // Default is MurmurHash3_128
-  private final HashFunction hf;
-  private HashCode hc;
 
   // counts are cached to avoid repeated complex computation. If register value
   // is updated the count will be computed again.
@@ -121,15 +117,12 @@ public class HyperLogLog {
       this.encodingSwitchThreshold = m / 3;
     }
 
-    // we won't need hash functions beyond 128 bits.. in fact 64 bits itself is
-    // more than sufficient
-    if (hllBuilder.numHashBits > 128) {
-      this.hf = Hashing.goodFastHash(128);
-    } else {
-      this.hf = Hashing.goodFastHash(hllBuilder.numHashBits);
-    }
-    this.chosenHashBits = hf.bits();
-    initializeAlpha();
+    // initializeAlpha(DEFAULT_HASH_BITS);
+    // alphaMM value for 128 bits hash seems to perform better for default 64 hash bits
+    this.alphaMM = 0.7213f / (1 + 1.079f / m);
+    // For efficiency alpha is multiplied by m^2
+    this.alphaMM = this.alphaMM * m * m;
+
     this.cachedCount = -1;
     this.invalidateCount = false;
     this.encoding = hllBuilder.encoding;
@@ -149,7 +142,6 @@ public class HyperLogLog {
 
   public static class HyperLogLogBuilder {
     private int numRegisterIndexBits = 14;
-    private int numHashBits = 64;
     private EncodingType encoding = EncodingType.SPARSE;
     private boolean bitPacking = true;
     private boolean noBias = true;
@@ -159,11 +151,6 @@ public class HyperLogLog {
 
     public HyperLogLogBuilder setNumRegisterIndexBits(int b) {
       this.numRegisterIndexBits = b;
-      return this;
-    }
-
-    public HyperLogLogBuilder setNumHashBits(int hb) {
-      this.numHashBits = hb;
       return this;
     }
 
@@ -188,12 +175,12 @@ public class HyperLogLog {
   }
 
   // see paper for alpha initialization.
-  private void initializeAlpha() {
-    if (chosenHashBits <= 16) {
+  private void initializeAlpha(final int hashBits) {
+    if (hashBits <= 16) {
       alphaMM = 0.673f;
-    } else if (chosenHashBits <= 32) {
+    } else if (hashBits <= 32) {
       alphaMM = 0.697f;
-    } else if (chosenHashBits <= 64) {
+    } else if (hashBits <= 64) {
       alphaMM = 0.709f;
     } else {
       alphaMM = 0.7213f / (float) (1 + 1.079f / m);
@@ -204,53 +191,45 @@ public class HyperLogLog {
   }
 
   public void addBoolean(boolean val) {
-    hc = hf.newHasher().putBoolean(val).hash();
-    add(getHashCode());
+    add(val ? HASH64_ONE : HASH64_ZERO);
   }
 
   public void addByte(byte val) {
-    hc = hf.newHasher().putByte(val).hash();
-    add(getHashCode());
+    add(Murmur3.hash64(new byte[] {val}));
   }
 
   public void addBytes(byte[] val) {
-    hc = hf.newHasher().putBytes(val).hash();
-    add(getHashCode());
-  }
-
-  public void addBytes(byte[] val, int offset, int len) {
-    hc = hf.newHasher().putBytes(val, offset, len).hash();
-    add(getHashCode());
+    add(Murmur3.hash64(val));
   }
 
   public void addShort(short val) {
-    hc = hf.newHasher().putShort(val).hash();
-    add(getHashCode());
+    SHORT_BUFFER.putShort(0, val);
+    add(Murmur3.hash64(SHORT_BUFFER.array()));
   }
 
   public void addInt(int val) {
-    hc = hf.newHasher().putInt(val).hash();
-    add(getHashCode());
+    INT_BUFFER.putInt(0, val);
+    add(Murmur3.hash64(INT_BUFFER.array()));
   }
 
   public void addLong(long val) {
-    hc = hf.newHasher().putLong(val).hash();
-    add(getHashCode());
+    LONG_BUFFER.putLong(0, val);
+    add(Murmur3.hash64(LONG_BUFFER.array()));
   }
 
   public void addFloat(float val) {
-    hc = hf.newHasher().putFloat(val).hash();
-    add(getHashCode());
+    INT_BUFFER.putFloat(0, val);
+    add(Murmur3.hash64(INT_BUFFER.array()));
   }
 
   public void addDouble(double val) {
-    hc = hf.newHasher().putDouble(val).hash();
-    add(getHashCode());
+    LONG_BUFFER.putDouble(0, val);
+    add(Murmur3.hash64(LONG_BUFFER.array()));
   }
 
   public void addChar(char val) {
-    hc = hf.newHasher().putChar(val).hash();
-    add(getHashCode());
+    SHORT_BUFFER.putChar(0, val);
+    add(Murmur3.hash64(SHORT_BUFFER.array()));
   }
 
   /**
@@ -259,23 +238,11 @@ public class HyperLogLog {
    *          - input string
    */
   public void addString(String val) {
-    hc = hf.newHasher().putString(val, Charset.defaultCharset()).hash();
-    add(getHashCode());
+    add(Murmur3.hash64(val.getBytes()));
   }
 
   public void addString(String val, Charset charset) {
-    hc = hf.newHasher().putString(val, charset).hash();
-    add(getHashCode());
-  }
-
-  private long getHashCode() {
-    long hashcode = 0;
-    if (chosenHashBits < 64) {
-      hashcode = hc.asInt();
-    } else {
-      hashcode = hc.asLong();
-    }
-    return hashcode;
+    add(Murmur3.hash64(val.getBytes(charset)));
   }
 
   public void add(long hashcode) {
@@ -517,10 +484,8 @@ public class HyperLogLog {
     StringBuilder sb = new StringBuilder();
     sb.append("Encoding: ");
     sb.append(encoding);
-    sb.append(", p : ");
+    sb.append(", p: ");
     sb.append(p);
-    sb.append(", chosenHashBits: ");
-    sb.append(chosenHashBits);
     sb.append(", estimatedCardinality: ");
     sb.append(count());
     return sb.toString();
@@ -538,10 +503,6 @@ public class HyperLogLog {
 
   public int getNumRegisterIndexBits() {
     return p;
-  }
-
-  public int getNumHashBits() {
-    return chosenHashBits;
   }
 
   public EncodingType getEncoding() {

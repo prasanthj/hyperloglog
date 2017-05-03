@@ -40,7 +40,6 @@ usage: HyperLogLog
                                 default = SPARSE
  -f,--file <arg>                specify file to read input data
  -h,--num-hash-bits <arg>       number of hashcode bits. default = 64
- -i,--input-file <arg>          specify input file for deserialization
  -n,--num-random-values <arg>   number of random values to generate
  -o,--output-file <arg>         specify output file for serialization
  -p,--num-register-bits <arg>   number of bits from hashcode used as
@@ -57,7 +56,7 @@ Test with 'n' random numbers
 ```
 #./hll -n 20000
 Actual count: 20000
-Encoding: DENSE, p : 14, chosenHashBits: 128, estimatedCardinality: 19993
+Encoding: DENSE, p: 14, estimatedCardinality: 19993
 Relative error: 0.034999847%
 ```
 
@@ -65,7 +64,7 @@ Test with input file
 ```
 #./hll -f /etc/passwd
 Actual count: 84
-Encoding: SPARSE, p : 14, chosenHashBits: 128, estimatedCardinality: 84
+Encoding: SPARSE, p: 14, estimatedCardinality: 84
 Relative error: 0.0%
 ```
 
@@ -73,7 +72,7 @@ Test serialization
 ```
 #./hll -n 100000000 -s -o /tmp/out.hll
 Actual count: 100000000
-Encoding: DENSE, p : 14, chosenHashBits: 128, estimatedCardinality: 100069607
+Encoding: DENSE, p: 14, estimatedCardinality: 100069607
 Relative error: -0.069606304%
 Serialized hyperloglog to /tmp/out.hll
 Serialized size: 10248 bytes
@@ -81,7 +80,7 @@ Serialization time: 20 ms
 
 ./hll -f /etc/passwd -s -o /tmp/out.hll
 Actual count: 84
-Encoding: SPARSE, p : 14, chosenHashBits: 128, estimatedCardinality: 84
+Encoding: SPARSE, p: 14, estimatedCardinality: 84
 Relative error: 0.0%
 Serialized hyperloglog to /tmp/out.hll
 Serialized size: 337 bytes
@@ -91,7 +90,7 @@ Serialization time: 5 ms
 Test deserialization
 ```
 #./hll -d -i /tmp/passwd.hll
-Encoding: SPARSE, p : 14, chosenHashBits: 128, estimatedCardinality: 84
+Encoding: SPARSE, p: 14, estimatedCardinality: 84
 Count after deserialization: 84
 Deserialization time: 42 ms
 ```
@@ -100,7 +99,7 @@ Test disabling bit-packing of registers
 ```
 #./hll -n 10000000 -b false -s -o /tmp/out.hll
 Actual count: 10000000
-Encoding: DENSE, p : 14, chosenHashBits: 128, estimatedCardinality: 10052011
+Encoding: DENSE, p: 14, estimatedCardinality: 10052011
 Relative error: -0.52011013%
 Serialized hyperloglog to /tmp/out.hll
 Serialized size: 16392 bytes

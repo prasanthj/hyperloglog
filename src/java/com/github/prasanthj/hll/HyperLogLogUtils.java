@@ -1,11 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Copyright 2017 Prasanth Jayachandran
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -47,7 +45,7 @@ public class HyperLogLogUtils {
    * <b>4 byte header</b> is encoded like below
    * 3 bytes - HLL magic string to identify serialized stream
    * 4 bits  - p (number of bits to be used as register index)
-   * 1 bit   - hash function (0 - MurmurHash3_32, 1 - MurmurHash3_128)
+   * 1       - spare bit (not used)
    * 3 bits  - encoding (000 - sparse, 001..110 - n bit packing, 111 - no bit packing)
    * 
    * Followed by header are 3 fields that are required for reconstruction
@@ -71,10 +69,6 @@ public class HyperLogLogUtils {
     int fourthByte = 0;
     int p = hll.getNumRegisterIndexBits();
     fourthByte = (p & 0xff) << 4;
-    int hb = hll.getNumHashBits();
-    if (hb > 32) {
-      fourthByte |= 1 << 3;
-    }
 
     int bitWidth = 0;
     EncodingType enc = hll.getEncoding();
@@ -141,12 +135,6 @@ public class HyperLogLogUtils {
     checkMagicString(in);
     int fourthByte = in.read() & 0xff;
     int p = fourthByte >>> 4;
-    int hb = (fourthByte >>> 3) & 1;
-    if (hb == 0) {
-      hb = 32;
-    } else {
-      hb = 128;
-    }
 
     // read type of encoding
     int enc = fourthByte & 7;
@@ -168,7 +156,7 @@ public class HyperLogLogUtils {
 
     HyperLogLog result = null;
     if (encoding.equals(EncodingType.SPARSE)) {
-      result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+      result = HyperLogLog.builder().setNumRegisterIndexBits(p)
           .setEncoding(EncodingType.SPARSE).build();
       int numRegisterEntries = (int) readVulong(in);
       int[] reg = new int[numRegisterEntries];
@@ -192,10 +180,10 @@ public class HyperLogLogUtils {
 
       // explicitly disable bit packing
       if (bitSize == 8) {
-        result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+        result = HyperLogLog.builder().setNumRegisterIndexBits(p)
             .setEncoding(EncodingType.DENSE).enableBitPacking(false).build();
       } else {
-        result = HyperLogLog.builder().setNumHashBits(hb).setNumRegisterIndexBits(p)
+        result = HyperLogLog.builder().setNumRegisterIndexBits(p)
             .setEncoding(EncodingType.DENSE).enableBitPacking(true).build();
       }
       int m = 1 << p;
@@ -252,8 +240,10 @@ public class HyperLogLogUtils {
 
   /**
    * Unpack the bitpacked HyperLogLog register.
-   * @param packedRegister
-   *          - bit packed register
+   * @param in
+   *          - input stream
+   * @param length
+   *          - serialized length
    * @return unpacked HLL register
    * @throws IOException
    */

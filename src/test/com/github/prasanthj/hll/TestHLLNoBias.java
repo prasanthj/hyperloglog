@@ -1,11 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Copyright 2017 Prasanth Jayachandran
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,10 +32,10 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(value = Parameterized.class)
 public class TestHLLNoBias {
 
-  // 1% tolerance for long range bias (when no bias enabled) and 5% when (no
+  // 1.5% tolerance for long range bias (when no bias enabled) and 5% when (no
   // bias is disabled) and
   // 0.5% for short range bias
-  private float noBiaslongRangeTolerance = 1.0f;
+  private float noBiaslongRangeTolerance = 1.5f;
   private float biasedlongRangeTolerance = 5.0f;
   private float shortRangeTolerance = 0.5f;
 
