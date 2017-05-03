@@ -39,7 +39,7 @@ usage: HyperLogLog
  -e,--encoding <arg>            specify encoding to use (SPARSE or DENSE).
                                 default = SPARSE
  -f,--file <arg>                specify file to read input data
- -h,--num-hash-bits <arg>       number of hashcode bits. default = 64
+ -i,--input-file <arg>          specify input file for deserialization
  -n,--num-random-values <arg>   number of random values to generate
  -o,--output-file <arg>         specify output file for serialization
  -p,--num-register-bits <arg>   number of bits from hashcode used as
