@@ -1,4 +1,4 @@
-HyperLogLog [![Build Status](https://travis-ci.org/prasanthj/hyperloglog.svg?branch=master)](https://travis-ci.org/prasanthj/hyperloglog/branches)
+HyperLogLog [![Build Status](https://travis-ci.org/prasanthj/hyperloglog.svg?branch=master)](https://travis-ci.org/prasanthj/hyperloglog/branches) [![codecov](https://codecov.io/gh/prasanthj/hyperloglog/branch/master/graph/badge.svg)](https://codecov.io/gh/prasanthj/hyperloglog)
 ===========
 
 HyperLogLog is an amazing data structure for estimating the cardinality (with very high accuracy) of large data sets that uses very little memory. This implementation of HyperLogLog contains the original algorithm by [Flajolet et. al] as well hyperloglog++ algorithm by [Heule et. al]. Refer 'References' section for blog posts/paper to find out the inner workings of hyperloglog.
