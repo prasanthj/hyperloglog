@@ -130,8 +130,8 @@ public class HLLSparseRegister implements HLLRegister {
    *      1 if longest trailing zero run is computeed from (w-p) input bits and
    *      its value is stored in q' bits
    * </pre>
-   * @param hashcode
-   * @return
+   * @param hashcode - hashcode value
+   * @return - encoded hash code
    */
   public int encodeHash(long hashcode) {
     // x = p' - p

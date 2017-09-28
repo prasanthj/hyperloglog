@@ -60,7 +60,7 @@ public class HyperLogLogUtils {
    *          - output stream to write to
    * @param hll
    *          - hyperloglog that needs to be serialized
-   * @throws IOException
+   * @throws IOException - thrown by OutputStream
    */
   public static void serializeHLL(OutputStream out, HyperLogLog hll) throws IOException {
 
@@ -129,7 +129,7 @@ public class HyperLogLogUtils {
    * @param in
    *          - input stream
    * @return deserialized hyperloglog
-   * @throws IOException
+   * @throws IOException - thrown by InputStream
    */
   public static HyperLogLog deserializeHLL(InputStream in) throws IOException {
     checkMagicString(in);
@@ -292,7 +292,7 @@ public class HyperLogLogUtils {
    * @param in
    *          - serialized HLL
    * @return - cardinality
-   * @throws IOException
+   * @throws IOException - thrown by InputStream
    */
   public static long getEstimatedCountFromSerializedHLL(InputStream in) throws IOException {
     checkMagicString(in);

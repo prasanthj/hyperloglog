@@ -423,7 +423,7 @@ public class HyperLogLog {
    * automatically after merge if the encoding switch threshold is exceeded.
    * @param hll
    *          - hyperloglog to be merged
-   * @throws IllegalArgumentException
+   * @throws IllegalArgumentException - throw when incompatible HLL are tried to be merged
    */
   public void merge(HyperLogLog hll) {
     if (p != hll.p || chosenHashBits != hll.chosenHashBits) {
