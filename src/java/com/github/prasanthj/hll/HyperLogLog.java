@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Map;
 
-
 /**
  * <pre>
  * This is an implementation of the following variants of hyperloglog (HLL)
@@ -472,8 +471,8 @@ public class HyperLogLog {
   /**
    * Reduces the accuracy of the HLL provided to a smaller size
    * @param p0 
-   *         - reduced p size for the new HyperLogLog 
-   * @return reduced HyperLogLog instance
+   *         - new p size for the new HyperLogLog (smaller or no change)
+   * @return reduced (or same) HyperLogLog instance
    */
   public HyperLogLog squash(final int p0) {
     if (p0 > p) {
@@ -482,28 +481,20 @@ public class HyperLogLog {
               + toString() + " Provided: " + p0);
     }
 
+    if (p0 == p) {
+      return this;
+    }
+
     final HyperLogLog hll = new HyperLogLogBuilder()
         .setNumRegisterIndexBits(p0).setEncoding(EncodingType.DENSE)
         .enableNoBias(noBias).build();
+    final HLLDenseRegister result = hll.denseRegister;
 
     if (encoding == EncodingType.SPARSE) {
-      final HLLDenseRegister result = hll.denseRegister;
-      int p0Mask = (1 << p0) - 1;
-      for (Map.Entry<Integer, Byte> entry : sparseRegister.getSparseMap()
-          .entrySet()) {
-        int key = entry.getKey();
-        int idx = key & p0Mask;
-        result.set(idx, entry.getValue());
-      }
+      sparseRegister.extractLowBitsTo(result);;
     } else if (encoding == EncodingType.DENSE) {
-      final HLLDenseRegister result = hll.denseRegister;
-      int p0Mask = (1 << p0) - 1;
-      byte[] raw = denseRegister.getRegister();
-      for (int i = 0; i < raw.length; i++) {
-        result.set(i & p0Mask, raw[i]);
-      }
+      denseRegister.extractLowBitsTo(result);
     }
-
     return hll;
   }
 
