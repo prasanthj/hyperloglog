@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Map;
 
+
 /**
  * <pre>
  * This is an implementation of the following variants of hyperloglog (HLL)
@@ -426,10 +427,20 @@ public class HyperLogLog {
    * @throws IllegalArgumentException - throw when incompatible HLL are tried to be merged
    */
   public void merge(HyperLogLog hll) {
-    if (p != hll.p || chosenHashBits != hll.chosenHashBits) {
+
+    if (chosenHashBits != hll.chosenHashBits) {
       throw new IllegalArgumentException(
           "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
               + toString() + " Provided: " + hll.toString());
+    }
+    if (p > hll.p) {
+      throw new IllegalArgumentException(
+          "HyperLogLog cannot merge a smaller p into a larger one : "
+              + toString() + " Provided: " + hll.toString());
+    }
+    if (p != hll.p) {
+      // invariant: p > hll.p
+      hll = hll.squash(p);
     }
 
     EncodingType otherEncoding = hll.getEncoding();
@@ -456,6 +467,44 @@ public class HyperLogLog {
     }
 
     invalidateCount = true;
+  }
+
+  /**
+   * Reduces the accuracy of the HLL provided to a smaller size
+   * @param p0 
+   *         - reduced p size for the new HyperLogLog 
+   * @return reduced HyperLogLog instance
+   */
+  public HyperLogLog squash(final int p0) {
+    if (p0 > p) {
+      throw new IllegalArgumentException(
+          "HyperLogLog cannot be be squashed to be bigger. Current: "
+              + toString() + " Provided: " + p0);
+    }
+
+    final HyperLogLog hll = new HyperLogLogBuilder()
+        .setNumRegisterIndexBits(p0).setEncoding(EncodingType.DENSE)
+        .enableNoBias(noBias).build();
+
+    if (encoding == EncodingType.SPARSE) {
+      final HLLDenseRegister result = hll.denseRegister;
+      int p0Mask = (1 << p0) - 1;
+      for (Map.Entry<Integer, Byte> entry : sparseRegister.getSparseMap()
+          .entrySet()) {
+        int key = entry.getKey();
+        int idx = key & p0Mask;
+        result.set(idx, entry.getValue());
+      }
+    } else if (encoding == EncodingType.DENSE) {
+      final HLLDenseRegister result = hll.denseRegister;
+      int p0Mask = (1 << p0) - 1;
+      byte[] raw = denseRegister.getRegister();
+      for (int i = 0; i < raw.length; i++) {
+        result.set(i & p0Mask, raw[i]);
+      }
+    }
+
+    return hll;
   }
 
   /**
