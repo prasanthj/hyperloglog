@@ -202,7 +202,7 @@ public class TestHyperLogLog {
     // merge should convert hll3 to DENSE
     hll3.merge(hll4);
     assertEquals((double) 2 * size, (double) hll3.count(), delta);
-    assertEquals(EncodingType.DENSE, hll2.getEncoding());
+    assertEquals(EncodingType.DENSE, hll3.getEncoding());
 
     // invalid merge -- smaller register merge to bigger
     hll.merge(hll5);
@@ -269,27 +269,31 @@ public class TestHyperLogLog {
 
   @Test
   public void testHLLSquash() {
-    final int size = 1000;
 
-    HyperLogLog hlls[] = new HyperLogLog[16];
-    for (int k = 8; k < hlls.length; k++) {
-      final HyperLogLog hll = HyperLogLog.builder()
-          .setEncoding(EncodingType.DENSE).setNumRegisterIndexBits(k).build();
-      for (int i = 0; i < size; i++) {
-        hll.addLong(i);
+    int[] sizes = new int[] { 500, 1000, 2300, 4096};
+    int minBits = 9;
+    for (final int size : sizes) {
+
+      HyperLogLog hlls[] = new HyperLogLog[16];
+      for (int k = minBits; k < hlls.length; k++) {
+        final HyperLogLog hll = HyperLogLog.builder()
+            .setEncoding(EncodingType.DENSE).setNumRegisterIndexBits(k).build();
+        for (int i = 0; i < size; i++) {
+          hll.addLong(i);
+        }
+        hlls[k] = hll;
       }
-      hlls[k] = hll;
-    }
 
-    for (int k = 8; k < hlls.length; k++) {
-      for (int j = k + 1; j < hlls.length; j++) {
-        final HyperLogLog large = hlls[j];
-        final HyperLogLog small = hlls[k];
-        final HyperLogLog mush = large.squash(small.getNumRegisterIndexBits());
-        assertEquals(small.count(), mush.count(), 0);
-        double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
-        double delta = threshold * size / 100;
-        assertEquals((double) size, (double) mush.count(), delta);
+      for (int k = minBits; k < hlls.length; k++) {
+        for (int j = k + 1; j < hlls.length; j++) {
+          final HyperLogLog large = hlls[j];
+          final HyperLogLog small = hlls[k];
+          final HyperLogLog mush = large
+              .squash(small.getNumRegisterIndexBits());
+          assertEquals(small.count(), mush.count(), 0);
+          double delta = Math.ceil(small.getStandardError()*size);
+          assertEquals((double) size, (double) mush.count(), delta);
+        }
       }
     }
   }

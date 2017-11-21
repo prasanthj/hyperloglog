@@ -209,7 +209,7 @@ public class HLLSparseRegister implements HLLRegister {
     for (Entry<Integer, Byte> entry : sparseMap.entrySet()) {
       int idx = entry.getKey();
       byte lr = entry.getValue(); // this can be a max of 65, never > 127
-      if (lr > 0) {
+      if (lr != 0) {
         // should be a no-op for sparse
         dest.add((long) ((1 << (p + lr - 1)) | idx));
       }

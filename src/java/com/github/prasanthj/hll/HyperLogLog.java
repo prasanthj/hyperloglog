@@ -491,7 +491,7 @@ public class HyperLogLog {
     final HLLDenseRegister result = hll.denseRegister;
 
     if (encoding == EncodingType.SPARSE) {
-      sparseRegister.extractLowBitsTo(result);;
+      sparseRegister.extractLowBitsTo(result);
     } else if (encoding == EncodingType.DENSE) {
       denseRegister.extractLowBitsTo(result);
     }
