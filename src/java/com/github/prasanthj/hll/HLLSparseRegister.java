@@ -16,10 +16,11 @@
 
 package com.github.prasanthj.hll;
 
-import java.util.Map;
-
 import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
 import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
+
+import java.util.Map;
+import java.util.Map.Entry;
 
 public class HLLSparseRegister implements HLLRegister {
 
@@ -201,6 +202,18 @@ public class HLLSparseRegister implements HLLRegister {
       mergeTempListToSparseMap();
     }
     return sparseMap;
+  }
+
+  // this is effectively the same as the dense register impl.
+  public void extractLowBitsTo(HLLRegister dest) {
+    for (Entry<Integer, Byte> entry : sparseMap.entrySet()) {
+      int idx = entry.getKey();
+      byte lr = entry.getValue(); // this can be a max of 65, never > 127
+      if (lr != 0) {
+        // should be a no-op for sparse
+        dest.add((long) ((1 << (p + lr - 1)) | idx));
+      }
+    }
   }
 
   public int getP() {

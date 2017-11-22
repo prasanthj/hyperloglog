@@ -426,10 +426,20 @@ public class HyperLogLog {
    * @throws IllegalArgumentException - throw when incompatible HLL are tried to be merged
    */
   public void merge(HyperLogLog hll) {
-    if (p != hll.p || chosenHashBits != hll.chosenHashBits) {
+
+    if (chosenHashBits != hll.chosenHashBits) {
       throw new IllegalArgumentException(
           "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
               + toString() + " Provided: " + hll.toString());
+    }
+    if (p > hll.p) {
+      throw new IllegalArgumentException(
+          "HyperLogLog cannot merge a smaller p into a larger one : "
+              + toString() + " Provided: " + hll.toString());
+    }
+    if (p != hll.p) {
+      // invariant: p > hll.p
+      hll = hll.squash(p);
     }
 
     EncodingType otherEncoding = hll.getEncoding();
@@ -456,6 +466,36 @@ public class HyperLogLog {
     }
 
     invalidateCount = true;
+  }
+
+  /**
+   * Reduces the accuracy of the HLL provided to a smaller size
+   * @param p0 
+   *         - new p size for the new HyperLogLog (smaller or no change)
+   * @return reduced (or same) HyperLogLog instance
+   */
+  public HyperLogLog squash(final int p0) {
+    if (p0 > p) {
+      throw new IllegalArgumentException(
+          "HyperLogLog cannot be be squashed to be bigger. Current: "
+              + toString() + " Provided: " + p0);
+    }
+
+    if (p0 == p) {
+      return this;
+    }
+
+    final HyperLogLog hll = new HyperLogLogBuilder()
+        .setNumRegisterIndexBits(p0).setEncoding(EncodingType.DENSE)
+        .enableNoBias(noBias).build();
+    final HLLDenseRegister result = hll.denseRegister;
+
+    if (encoding == EncodingType.SPARSE) {
+      sparseRegister.extractLowBitsTo(result);
+    } else if (encoding == EncodingType.DENSE) {
+      denseRegister.extractLowBitsTo(result);
+    }
+    return hll;
   }
 
   /**
