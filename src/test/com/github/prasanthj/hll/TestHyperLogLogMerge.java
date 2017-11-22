@@ -38,8 +38,8 @@ public class TestHyperLogLogMerge {
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(new Object[][] {
-      { 1_000 }, { 10_000 }, { 100_000 }, { 1_000_000 }, { 10_000_000 }, { 100_000_000 }
-      // { 1_000_000_000 } 1B passed but is super slow
+      { 1_000 }, { 10_000 }, { 100_000 }, { 1_000_000 }, { 10_000_000 }
+      // { 100_000_000 }, { 1_000_000_000 } 1B passed but is super slow
     });
   }
 

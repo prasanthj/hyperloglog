@@ -297,4 +297,38 @@ public class TestHyperLogLog {
       }
     }
   }
+
+  @Test
+  public void testHLLDenseDenseSquash() {
+    HyperLogLog p14HLL = HyperLogLog.builder().setEncoding(EncodingType.DENSE).setNumRegisterIndexBits(14).build();
+    HyperLogLog p10HLL = HyperLogLog.builder().setEncoding(EncodingType.DENSE).setNumRegisterIndexBits(10).build();
+    int size = 1_000_000;
+    for (int i = 0; i < size; i++) {
+      p14HLL.addLong(i);
+    }
+
+    for (int i = 0; i < 10_000; i++) {
+      p10HLL.addLong(i);
+    }
+
+    p14HLL.squash(p10HLL.getNumRegisterIndexBits());
+    assertEquals((double) size, p14HLL.count(), longRangeTolerance * size / 100.0);
+  }
+
+  @Test
+  public void testHLLSparseDenseSquash() {
+    HyperLogLog p14HLL = HyperLogLog.builder().setEncoding(EncodingType.SPARSE).setNumRegisterIndexBits(14).build();
+    HyperLogLog p10HLL = HyperLogLog.builder().setEncoding(EncodingType.DENSE).setNumRegisterIndexBits(10).build();
+    int size = 2000;
+    for (int i = 0; i < size; i++) {
+      p14HLL.addLong(i);
+    }
+
+    for (int i = 0; i < 10_000; i++) {
+      p10HLL.addLong(i);
+    }
+
+    p14HLL.squash(p10HLL.getNumRegisterIndexBits());
+    assertEquals((double) size, p14HLL.count(), longRangeTolerance * size / 100.0);
+  }
 }
