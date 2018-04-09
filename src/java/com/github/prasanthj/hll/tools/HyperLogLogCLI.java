@@ -19,15 +19,7 @@ package com.github.prasanthj.hll.tools;
 import com.github.prasanthj.hll.HyperLogLog;
 import com.github.prasanthj.hll.HyperLogLogUtils;
 
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -53,6 +45,7 @@ public class HyperLogLogCLI {
     int p = 14;
     boolean bitPack = true;
     boolean noBias = true;
+    boolean printRelativeError = false;
     int unique = -1;
     String filePath = null;
     BufferedReader br = null;
@@ -65,9 +58,11 @@ public class HyperLogLogCLI {
     try {
       cli = parser.parse(options, args);
 
-      if (!(cli.hasOption('n') || cli.hasOption('f') || cli.hasOption('d'))) {
-        System.out.println("Example usage: hll -n 1000 " + "<OR> hll -f /tmp/input.txt "
-            + "<OR> hll -d -i /tmp/out.hll");
+      if (!(cli.hasOption('n') || cli.hasOption('f') || cli.hasOption('d') || cli.hasOption('t'))) {
+        System.out.println("Example usage: hll -n 1000\n"
+                + "          <OR> hll -f /tmp/input.txt\n"
+                + "          <OR> hll -d -i /tmp/out.hll\n"
+                + "          <OR> cat file | hll -t\n");
         usage(options);
         return;
       }
@@ -106,6 +101,14 @@ public class HyperLogLogCLI {
 
       if (filePath != null && cli.hasOption('n')) {
         System.out.println("'-f' (input file) specified. Ignoring -n.");
+      }
+
+      if (cli.hasOption('t')) {
+        br = new BufferedReader(new InputStreamReader(System.in));
+      }
+
+      if (cli.hasOption('r')) {
+        printRelativeError  = true;
       }
 
       if (cli.hasOption('s')) {
@@ -152,8 +155,13 @@ public class HyperLogLogCLI {
         String line;
         while ((line = br.readLine()) != null) {
           hll.addString(line);
-          hashset.add(line);
+
+          //ignore hashset overhead if no relative error needed
+          if(printRelativeError) {
+            hashset.add(line);
+          }
         }
+
         n = hashset.size();
       } else {
         Random rand = new Random(seed);
@@ -168,9 +176,12 @@ public class HyperLogLogCLI {
       }
 
       long estCount = hll.count();
-      System.out.println("Actual count: " + n);
       System.out.println(hll.toString());
-      System.out.println("Relative error: " + HyperLogLogUtils.getRelativeError(n, estCount) + "%");
+      if(printRelativeError) {
+        System.out.println("Actual count: " + n);
+        System.out.println("Relative error: " + HyperLogLogUtils.getRelativeError(n, estCount) + "%");
+      }
+
       if (fos != null && out != null) {
         long start = System.currentTimeMillis();
         HyperLogLogUtils.serializeHLL(out, hll);
@@ -212,6 +223,8 @@ public class HyperLogLogCLI {
     options.addOption("d", "deserialize", false,
         "deserialize hyperloglog from file. specify -i for input file");
     options.addOption("i", "input-file", true, "specify input file for deserialization");
+    options.addOption("t", "standard-in", false, "read data from standard in");
+    options.addOption("r", "relative-error", false, "print relative error calculation");
   }
 
   static void usage(Options options) {
