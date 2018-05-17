@@ -101,7 +101,7 @@ public class HyperLogLogUtils {
       byte[] register = hll.getHLLDenseRegister().getRegister();
       bitpackHLLRegister(out, register, bitWidth);
     } else if (enc.equals(EncodingType.SPARSE)) {
-      Int2ByteSortedMap sparseMap = hll.getHLLSparseRegister().getSparseMap();
+      Map<Integer, Byte> sparseMap = hll.getHLLSparseRegister().getSparseMap();
 
       // write the number of elements in sparse map (required for
       // reconstruction)

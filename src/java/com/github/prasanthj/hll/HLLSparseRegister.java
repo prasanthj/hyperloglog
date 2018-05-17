@@ -1,12 +1,9 @@
-/**
+/*
  * Copyright 2017 Prasanth Jayachandran
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * http://www.apache.org/licenses/LICENSE-2.0
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,11 +13,11 @@
 
 package com.github.prasanthj.hll;
 
-import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
-import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
-
 import java.util.Map;
 import java.util.Map.Entry;
+
+import it.unimi.dsi.fastutil.ints.Int2ByteAVLTreeMap;
+import it.unimi.dsi.fastutil.ints.Int2ByteSortedMap;
 
 public class HLLSparseRegister implements HLLRegister {
 
@@ -29,11 +26,6 @@ public class HLLSparseRegister implements HLLRegister {
   // paper
   // http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
   private Int2ByteSortedMap sparseMap;
-
-  // for a better insertion performance values are added to temporary unsorted
-  // list which will be merged to sparse map after a threshold
-  private int[] tempList;
-  private int tempListIdx;
 
   // number of register bits
   private final int p;
@@ -49,11 +41,9 @@ public class HLLSparseRegister implements HLLRegister {
   private final int pPrimeMask;
   private final int qPrimeMask;
 
-  public HLLSparseRegister(int p, int pp, int qp) {
+  HLLSparseRegister(int p, int pp, int qp) {
     this.p = p;
     this.sparseMap = new Int2ByteAVLTreeMap();
-    this.tempList = new int[HLLConstants.TEMP_LIST_DEFAULT_SIZE];
-    this.tempListIdx = 0;
     this.pPrime = pp;
     this.qPrime = qp;
     this.mask = ((1 << pPrime) - 1) ^ ((1 << p) - 1);
@@ -62,67 +52,45 @@ public class HLLSparseRegister implements HLLRegister {
   }
 
   public boolean add(long hashcode) {
-    boolean updated = false;
+    boolean updated;
 
-    // fill the temp list before merging to sparse map
-    if (tempListIdx < tempList.length) {
-      int encodedHash = encodeHash(hashcode);
-      tempList[tempListIdx++] = encodedHash;
-      updated = true;
+    int encodedHash = encodeHash(hashcode);
+
+    int key = encodedHash & pPrimeMask;
+    byte value = (byte) (encodedHash >>> pPrime);
+    byte nr;
+    // if MSB is set to 1 then next qPrime MSB bits contains the value of
+    // number of zeroes.
+    // if MSB is set to 0 then number of zeroes is contained within pPrime - p
+    // bits.
+    if (encodedHash < 0) {
+      nr = (byte) (value & qPrimeMask);
     } else {
-      updated = mergeTempListToSparseMap();
+      nr = (byte) (Integer.numberOfTrailingZeros(encodedHash >>> p) + 1);
     }
+    updated = set(key, nr);
 
-    return updated;
-  }
-
-  /**
-   * Adds temp list to sparse map. The key for sparse map entry is the register
-   * index determined by pPrime and value is the number of trailing zeroes.
-   * @return
-   */
-  private boolean mergeTempListToSparseMap() {
-    boolean updated = false;
-    for (int i = 0; i < tempListIdx; i++) {
-      int encodedHash = tempList[i];
-      int key = encodedHash & pPrimeMask;
-      byte value = (byte) (encodedHash >>> pPrime);
-      byte nr = 0;
-      // if MSB is set to 1 then next qPrime MSB bits contains the value of
-      // number of zeroes.
-      // if MSB is set to 0 then number of zeroes is contained within pPrime - p
-      // bits.
-      if (encodedHash < 0) {
-        nr = (byte) (value & qPrimeMask);
-      } else {
-        nr = (byte) (Integer.numberOfTrailingZeros(encodedHash >>> p) + 1);
-      }
-      updated = set(key, nr);
-    }
-
-    // reset temp list index
-    tempListIdx = 0;
     return updated;
   }
 
   /**
    * <pre>
    * <b>Input:</b> 64 bit hashcode
-   * 
+   *
    * |---------w-------------| |------------p'----------|
    * 10101101.......1010101010 10101010101 01010101010101
    *                                       |------p-----|
-   *                                       
+   *
    * <b>Output:</b> 32 bit int
-   * 
+   *
    * |b| |-q'-|  |------------p'----------|
    *  1  010101  01010101010 10101010101010
    *                         |------p-----|
-   *                    
-   * 
+   *
+   *
    * The default values of p', q' and b are 25, 6, 1 (total 32 bits) respectively.
    * This function will return an int encoded in the following format
-   * 
+   *
    * p  - LSB p bits represent the register index
    * p' - LSB p' bits are used for increased accuracy in estimation
    * q' - q' bits after p' are left as such from the hashcode if b = 0 else
@@ -153,11 +121,6 @@ public class HLLSparseRegister implements HLLRegister {
   }
 
   public int getSize() {
-
-    // merge temp list before getting the size of sparse map
-    if (tempListIdx != 0) {
-      mergeTempListToSparseMap();
-    }
     return sparseMap.size();
   }
 
@@ -180,13 +143,8 @@ public class HLLSparseRegister implements HLLRegister {
     boolean updated = false;
 
     // retain only the largest value for a register index
-    if (sparseMap.containsKey(key)) {
-      byte containedVal = sparseMap.get(key);
-      if (value > containedVal) {
-        sparseMap.put(key, value);
-        updated = true;
-      }
-    } else {
+    Byte containedVal = sparseMap.get(key);
+    if (value > containedVal) {
       sparseMap.put(key, value);
       updated = true;
     }
@@ -194,13 +152,6 @@ public class HLLSparseRegister implements HLLRegister {
   }
 
   public Int2ByteSortedMap getSparseMap() {
-    return sparseMap;
-  }
-
-  public Int2ByteSortedMap getMergedSparseMap() {
-    if (tempListIdx != 0) {
-      mergeTempListToSparseMap();
-    }
     return sparseMap;
   }
 
@@ -247,16 +198,9 @@ public class HLLSparseRegister implements HLLRegister {
       return false;
     }
     HLLSparseRegister other = (HLLSparseRegister) obj;
-    boolean result = p == other.p && pPrime == other.pPrime && qPrime == other.qPrime
-        && tempListIdx == other.tempListIdx;
+    boolean result = p == other.p && pPrime == other.pPrime && qPrime == other.qPrime;
     if (result) {
-      for (int i = 0; i < tempListIdx; i++) {
-        if (tempList[i] != other.tempList[i]) {
-          return false;
-        }
-      }
-
-      result = result && sparseMap.equals(other.sparseMap);
+      result = sparseMap.equals(other.sparseMap);
     }
     return result;
   }
@@ -267,9 +211,6 @@ public class HLLSparseRegister implements HLLRegister {
     hashcode += 31 * p;
     hashcode += 31 * pPrime;
     hashcode += 31 * qPrime;
-    for (int i = 0; i < tempListIdx; i++) {
-      hashcode += 31 * tempList[tempListIdx];
-    }
     hashcode += sparseMap.hashCode();
     return hashcode;
   }

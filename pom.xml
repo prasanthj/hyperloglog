@@ -110,6 +110,16 @@
             <version>11.0.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>1.18</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-standalone-metastore</artifactId>
+            <version>3.0.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>
