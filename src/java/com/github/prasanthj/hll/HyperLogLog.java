@@ -1,12 +1,9 @@
 /**
  * Copyright 2017 Prasanth Jayachandran
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * http://www.apache.org/licenses/LICENSE-2.0
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,12 +13,12 @@
 
 package com.github.prasanthj.hll;
 
-import it.unimi.dsi.fastutil.doubles.Double2IntAVLTreeMap;
-import it.unimi.dsi.fastutil.doubles.Double2IntSortedMap;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Map;
+
+import it.unimi.dsi.fastutil.doubles.Double2IntAVLTreeMap;
+import it.unimi.dsi.fastutil.doubles.Double2IntSortedMap;
 
 /**
  * <pre>
@@ -33,7 +30,7 @@ import java.util.Map;
  *             http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
  * HLL++     - Google's implementation of HLL++ algorithm that uses SPARSE registers
  *             http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
- *             
+ *
  * Following are the constructor parameters that determines which algorithm is
  * used
  * <b>numRegisterIndexBits</b> - number of LSB hashcode bits to be used as register index.
@@ -46,13 +43,13 @@ import java.util.Map;
  * <b>noBias</b> - Use Google's bias table lookup for short range bias correction.
  *          Enabling this will highly improve the estimation accuracy for short
  *          range values. <i>Default: true</i>
- * 
+ *
  * </pre>
  */
 public class HyperLogLog {
   private final static int DEFAULT_HASH_BITS = 64;
-  private final static long HASH64_ZERO = Murmur3.hash64(new byte[] {0});
-  private final static long HASH64_ONE = Murmur3.hash64(new byte[] {1});
+  private final static long HASH64_ZERO = Murmur3.hash64(new byte[]{0});
+  private final static long HASH64_ONE = Murmur3.hash64(new byte[]{1});
   private final static ByteBuffer SHORT_BUFFER = ByteBuffer.allocate(Short.BYTES);
   private final static ByteBuffer INT_BUFFER = ByteBuffer.allocate(Integer.BYTES);
   private final static ByteBuffer LONG_BUFFER = ByteBuffer.allocate(Long.BYTES);
@@ -94,9 +91,9 @@ public class HyperLogLog {
 
   private HyperLogLog(HyperLogLogBuilder hllBuilder) {
     if (hllBuilder.numRegisterIndexBits < HLLConstants.MIN_P_VALUE
-        || hllBuilder.numRegisterIndexBits > HLLConstants.MAX_P_VALUE) {
+      || hllBuilder.numRegisterIndexBits > HLLConstants.MAX_P_VALUE) {
       throw new IllegalArgumentException("p value should be between " + HLLConstants.MIN_P_VALUE
-          + " to " + HLLConstants.MAX_P_VALUE);
+        + " to " + HLLConstants.MAX_P_VALUE);
     }
     this.p = hllBuilder.numRegisterIndexBits;
     this.m = 1 << p;
@@ -128,7 +125,7 @@ public class HyperLogLog {
     this.encoding = hllBuilder.encoding;
     if (encoding.equals(EncodingType.SPARSE)) {
       this.sparseRegister = new HLLSparseRegister(p, HLLConstants.P_PRIME_VALUE,
-          HLLConstants.Q_PRIME_VALUE);
+        HLLConstants.Q_PRIME_VALUE);
       this.denseRegister = null;
     } else {
       this.sparseRegister = null;
@@ -195,7 +192,7 @@ public class HyperLogLog {
   }
 
   public void addByte(byte val) {
-    add(Murmur3.hash64(new byte[] {val}));
+    add(Murmur3.hash64(new byte[]{val}));
   }
 
   public void addBytes(byte[] val) {
@@ -276,7 +273,7 @@ public class HyperLogLog {
         // if encoding is still SPARSE use linear counting with increase
         // accuracy (as we use pPrime bits for register index)
         int mPrime = 1 << sparseRegister.getPPrime();
-        cachedCount = linearCount(mPrime, mPrime - sparseRegister.getSize());
+        cachedCount = linearCount(mPrime, mPrime - sparseRegister.getSparseMap().size());
       } else {
 
         // for DENSE encoding, use bias table lookup for HLLNoBias algorithm
@@ -292,7 +289,7 @@ public class HyperLogLog {
         // when bias correction is enabled
         if (noBias) {
           cachedCount = cachedCount <= 5 * m ? (cachedCount - estimateBias(cachedCount))
-              : cachedCount;
+            : cachedCount;
           long h = cachedCount;
           if (numZeros != 0) {
             h = linearCount(m, numZeros);
@@ -429,13 +426,13 @@ public class HyperLogLog {
 
     if (chosenHashBits != hll.chosenHashBits) {
       throw new IllegalArgumentException(
-          "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
-              + toString() + " Provided: " + hll.toString());
+        "HyperLogLog cannot be merged as either p or hashbits are different. Current: "
+          + toString() + " Provided: " + hll.toString());
     }
     if (p > hll.p) {
       throw new IllegalArgumentException(
-          "HyperLogLog cannot merge a smaller p into a larger one : "
-              + toString() + " Provided: " + hll.toString());
+        "HyperLogLog cannot merge a smaller p into a larger one : "
+          + toString() + " Provided: " + hll.toString());
     }
     if (p != hll.p) {
       // invariant: p > hll.p
@@ -470,15 +467,15 @@ public class HyperLogLog {
 
   /**
    * Reduces the accuracy of the HLL provided to a smaller size
-   * @param p0 
+   * @param p0
    *         - new p size for the new HyperLogLog (smaller or no change)
    * @return reduced (or same) HyperLogLog instance
    */
   public HyperLogLog squash(final int p0) {
     if (p0 > p) {
       throw new IllegalArgumentException(
-          "HyperLogLog cannot be be squashed to be bigger. Current: "
-              + toString() + " Provided: " + p0);
+        "HyperLogLog cannot be be squashed to be bigger. Current: "
+          + toString() + " Provided: " + p0);
     }
 
     if (p0 == p) {
@@ -486,8 +483,8 @@ public class HyperLogLog {
     }
 
     final HyperLogLog hll = new HyperLogLogBuilder()
-        .setNumRegisterIndexBits(p0).setEncoding(EncodingType.DENSE)
-        .enableNoBias(noBias).build();
+      .setNumRegisterIndexBits(p0).setEncoding(EncodingType.DENSE)
+      .enableNoBias(noBias).build();
     final HLLDenseRegister result = hll.denseRegister;
 
     if (encoding == EncodingType.SPARSE) {
@@ -563,7 +560,7 @@ public class HyperLogLog {
     long count = count();
     long otherCount = other.count();
     boolean result = p == other.p && chosenHashBits == other.chosenHashBits
-        && encoding.equals(other.encoding) && count == otherCount;
+      && encoding.equals(other.encoding) && count == otherCount;
     if (encoding.equals(EncodingType.DENSE)) {
       result = result && denseRegister.equals(other.getHLLDenseRegister());
     }

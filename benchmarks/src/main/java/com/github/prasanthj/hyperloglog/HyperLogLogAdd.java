@@ -27,6 +27,7 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.LinuxPerfAsmProfiler;
 import org.openjdk.jmh.profile.LinuxPerfNormProfiler;
 import org.openjdk.jmh.profile.LinuxPerfProfiler;
@@ -38,27 +39,14 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import com.github.prasanthj.hll.HyperLogLog;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 5, time = 1)
+@Warmup(iterations = 10, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(1)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 public class HyperLogLogAdd {
 
-  private HyperLogLog hll = HyperLogLog
-    .builder()
-    .setNumRegisterIndexBits(10)
-    .setEncoding(HyperLogLog.EncodingType.SPARSE)
-    .build();
-  private org.apache.hadoop.hive.common.ndv.hll.HyperLogLog hiveHll = org.apache.hadoop.hive.common.ndv.hll
-    .HyperLogLog
-    .builder()
-    .setNumRegisterIndexBits(10)
-    .setEncoding(org.apache.hadoop.hive.common.ndv.hll.HyperLogLog.EncodingType.SPARSE)
-    .build();
-
   private static List<Long> hashcodes;
-
   static {
     hashcodes = new ArrayList<>();
     Random random = new Random(123);
@@ -69,18 +57,31 @@ public class HyperLogLogAdd {
 
   @Benchmark
   @OperationsPerInvocation(100)
-  public void testHLLAdd() {
+  public void testHLLAdd(Blackhole blackhole) {
+    final HyperLogLog hll = HyperLogLog
+      .builder()
+      .setNumRegisterIndexBits(10)
+      .setEncoding(HyperLogLog.EncodingType.SPARSE)
+      .build();
     for (long hashcode : hashcodes) {
       hll.add(hashcode);
     }
+    blackhole.consume(hll);
   }
 
   @Benchmark
   @OperationsPerInvocation(100)
-  public void testHLLAddHive() {
+  public void testHLLAddHive(Blackhole blackhole) {
+    final org.apache.hadoop.hive.common.ndv.hll.HyperLogLog hiveHll = org.apache.hadoop.hive.common.ndv.hll
+      .HyperLogLog
+      .builder()
+      .setNumRegisterIndexBits(10)
+      .setEncoding(org.apache.hadoop.hive.common.ndv.hll.HyperLogLog.EncodingType.SPARSE)
+      .build();
     for (long hashcode : hashcodes) {
       hiveHll.add(hashcode);
     }
+    blackhole.consume(hiveHll);
   }
 
   /*
